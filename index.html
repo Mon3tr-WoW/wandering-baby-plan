@@ -11,8 +11,27 @@
 </head>
 <body>
   <div class="nebula-bg" aria-hidden="true"></div>
+  <div class="aurora-sheen" aria-hidden="true"></div>
   <div class="space-grid" aria-hidden="true"></div>
+  <div class="circuit-lines" aria-hidden="true">
+    <span class="circuit circuit-h-top"></span>
+    <span class="circuit circuit-h-mid"></span>
+    <span class="circuit circuit-h-low"></span>
+    <span class="circuit circuit-v-left"></span>
+    <span class="circuit circuit-v-right"></span>
+    <span class="circuit circuit-diag-l"></span>
+    <span class="circuit circuit-diag-r"></span>
+    <span class="circuit-node cn-1"></span>
+    <span class="circuit-node cn-2"></span>
+    <span class="circuit-node cn-3"></span>
+    <span class="circuit-node cn-4"></span>
+    <span class="circuit-node cn-5"></span>
+    <span class="circuit-pulse cp-1"></span>
+    <span class="circuit-pulse cp-2"></span>
+    <span class="circuit-pulse cp-3"></span>
+  </div>
   <div id="particles" class="particles" aria-hidden="true"></div>
+  <canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
 
   <!-- 曲速跳跃转场 -->
   <div id="warp-overlay" class="warp-overlay" aria-hidden="true">
@@ -22,6 +41,13 @@
 
   <!-- 开始界面 -->
   <section id="screen-start" class="screen active">
+    <div class="start-hud-frame" aria-hidden="true">
+      <span class="hud-corner hud-tl"></span>
+      <span class="hud-corner hud-tr"></span>
+      <span class="hud-corner hud-bl"></span>
+      <span class="hud-corner hud-br"></span>
+      <span class="hud-scan-bar"></span>
+    </div>
     <div class="start-deco start-deco-binary" aria-hidden="true">
       <pre class="binary-stream">01001110 01100101 01101111
 11010011 10110001 11010000
@@ -56,7 +82,7 @@
           <span class="title-scanlines" aria-hidden="true"></span>
         </span>
       </h1>
-      <p class="subtitle"><span class="subtitle-prefix">代号</span>：方舟</p>
+      <p class="subtitle">代号：方舟</p>
     </header>
     <nav class="start-menu">
       <button type="button" id="btn-start" class="btn-primary btn-breathe">开始漂流</button>

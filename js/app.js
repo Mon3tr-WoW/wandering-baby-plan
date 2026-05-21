@@ -4,6 +4,7 @@ import {
   clearSave,
   createFreshSave
 } from './save.js';
+import { initStartFx, setParticlesEnabled } from './start-fx.js';
 
 const WARP_MS = 1600;
 const VIDEO_BASE = 'videos/';
@@ -39,6 +40,7 @@ const els = {
   endingDesc: $('#ending-desc'),
   endingList: $('#ending-list'),
   particles: $('#particles'),
+  particleCanvas: $('#particle-canvas'),
   toggleParticles: $('#toggle-particles'),
   toggleScanline: $('#toggle-scanline'),
   perfectHooks: $('#perfect-hooks')
@@ -174,6 +176,7 @@ function applySettings() {
   if (els.particles) {
     els.particles.classList.toggle('disabled', !save.settings.particles);
   }
+  setParticlesEnabled(!!save.settings.particles);
   if (els.scanline) {
     els.scanline?.classList.toggle('hidden', !save.settings.scanline);
   }
@@ -465,6 +468,7 @@ async function init() {
 
   applySettings();
   bindEvents();
+  initStartFx(els.particleCanvas);
   showScreen('start');
 
   if ($('#title-main')) {
