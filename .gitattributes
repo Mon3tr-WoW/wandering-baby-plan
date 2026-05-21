@@ -1,4 +1,5 @@
-# 所有 mp4 视频走 Git LFS（避免超过 GitHub 单文件 100MB 限制）
+# 视频大文件走 Git LFS（覆盖常见扩展名与大小写）
 *.mp4 filter=lfs diff=lfs merge=lfs -text
-*.mov filter=lfs diff=lfs merge=lfs -text
 *.MP4 filter=lfs diff=lfs merge=lfs -text
+*.mov filter=lfs diff=lfs merge=lfs -text
+*.MOV filter=lfs diff=lfs merge=lfs -text

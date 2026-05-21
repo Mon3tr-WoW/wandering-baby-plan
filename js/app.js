@@ -55,8 +55,18 @@ function nodeById(id) {
   return story?.nodes[id] ?? null;
 }
 
+/** story.json 里写的是 1.mp4，实际文件可能是 1.mov / 1.MP4 */
+function videoStem(node) {
+  return node.video.replace(/\.[^/.]+$/, '');
+}
+
+function videoCandidates(node) {
+  const stem = videoStem(node);
+  return ['.mp4', '.mov', '.MP4', '.MOV'].map((ext) => VIDEO_BASE + stem + ext);
+}
+
 function videoUrl(node) {
-  return VIDEO_BASE + node.video;
+  return videoCandidates(node)[0];
 }
 
 function persist() {
@@ -192,9 +202,33 @@ function onVideoEnded() {
   showChoices(node);
 }
 
+async function resolveVideoSrc(node) {
+  const candidates = videoCandidates(node);
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      if (res.ok) return url;
+    } catch {
+      /* 本地 file:// 等环境可能不支持 HEAD，继续尝试 */
+    }
+  }
+  return candidates[0];
+}
+
 async function loadNodeVideo(node, autoplay = true) {
   hideChoices();
-  const url = videoUrl(node);
+  let url = await resolveVideoSrc(node);
+  els.video.onerror = () => {
+    const list = videoCandidates(node);
+    const idx = list.indexOf(url);
+    if (idx >= 0 && idx < list.length - 1) {
+      url = list[idx + 1];
+      els.video.onerror = null;
+      els.video.src = url;
+      els.video.load();
+      if (autoplay) els.video.play().catch(() => {});
+    }
+  };
   els.video.src = url;
   els.video.load();
   updateHud(node);
