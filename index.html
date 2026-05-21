@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>流浪婴儿计划：方舟号</title>
+  <title>流浪婴儿计划</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/main.css" />
 </head>
 <body>
-  <div id="particles" class="particles" aria-hidden="true"></div>
   <div class="nebula-bg" aria-hidden="true"></div>
+  <div class="space-grid" aria-hidden="true"></div>
+  <div id="particles" class="particles" aria-hidden="true"></div>
 
   <!-- 曲速跳跃转场 -->
   <div id="warp-overlay" class="warp-overlay" aria-hidden="true">
@@ -21,18 +22,49 @@
 
   <!-- 开始界面 -->
   <section id="screen-start" class="screen active">
+    <div class="start-deco start-deco-binary" aria-hidden="true">
+      <pre class="binary-stream">01001110 01100101 01101111
+11010011 10110001 11010000
+01100101 01110110 01101111
+01000001 01010010 01001011
+01110011 01100101 01100101
+01100100 00100000 01110011
+01110100 01100001 01110100
+01110101 01110011 00111010
+01001111 01001110 01001100
+01001001 01001110 01000101</pre>
+    </div>
+    <div class="start-deco start-deco-evolution" aria-hidden="true">
+      <div class="evo-tree">
+        <span class="evo-node evo-root"></span>
+        <span class="evo-line evo-line-a"></span>
+        <span class="evo-node evo-n1"></span>
+        <span class="evo-line evo-line-b"></span>
+        <span class="evo-node evo-n2"></span>
+        <span class="evo-line evo-line-c"></span>
+        <span class="evo-node evo-n3"></span>
+        <span class="evo-line evo-line-d"></span>
+        <span class="evo-node evo-n4"></span>
+      </div>
+    </div>
+
     <header class="start-header">
-      <h1 id="title-main" class="title-glow">★ 流浪婴儿计划：方舟号 ★</h1>
-      <p class="subtitle">互动航行模拟 · 方舟号指挥舱</p>
+      <p class="start-tag">HUMAN EVOLUTION · CYBER VOYAGE</p>
+      <h1 class="title-glow">
+        <span class="title-inner">
+          <span id="title-main">流浪婴儿计划</span>
+          <span class="title-scanlines" aria-hidden="true"></span>
+        </span>
+      </h1>
+      <p class="subtitle"><span class="subtitle-prefix">代号</span>：方舟</p>
     </header>
     <nav class="start-menu">
-      <button type="button" id="btn-start" class="btn-primary pulse">开始漂流</button>
-      <button type="button" id="btn-continue" class="btn-secondary hidden">继续航行</button>
-      <button type="button" id="btn-open-log" class="btn-secondary">航行日志</button>
-      <button type="button" id="btn-open-settings" class="btn-secondary">系统设置</button>
+      <button type="button" id="btn-start" class="btn-primary btn-breathe">开始漂流</button>
+      <button type="button" id="btn-continue" class="btn-secondary btn-breathe hidden">继续航行</button>
+      <button type="button" id="btn-open-log" class="btn-secondary btn-breathe">航行日志</button>
+      <button type="button" id="btn-open-settings" class="btn-secondary btn-breathe">系统设置</button>
     </nav>
     <footer class="start-footer">
-      <span>指挥官模式</span>
       <span class="dim">v1 · 静态互动版</span>
     </footer>
   </section>
