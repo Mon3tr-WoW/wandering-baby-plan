@@ -32,6 +32,8 @@
   </div>
   <div id="particles" class="particles" aria-hidden="true"></div>
   <canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="auto"></audio>
+  <div id="start-intro-curtain" class="start-intro-curtain" aria-hidden="true"></div>
 
   <!-- 曲速跳跃转场 -->
   <div id="warp-overlay" class="warp-overlay" aria-hidden="true">
@@ -41,13 +43,6 @@
 
   <!-- 开始界面 -->
   <section id="screen-start" class="screen active">
-    <div class="start-hud-frame" aria-hidden="true">
-      <span class="hud-corner hud-tl"></span>
-      <span class="hud-corner hud-tr"></span>
-      <span class="hud-corner hud-bl"></span>
-      <span class="hud-corner hud-br"></span>
-      <span class="hud-scan-bar"></span>
-    </div>
     <div class="start-deco start-deco-binary" aria-hidden="true">
       <pre class="binary-stream">01001110 01100101 01101111
 11010011 10110001 11010000
@@ -75,22 +70,22 @@
     </div>
 
     <header class="start-header">
-      <p class="start-tag">HUMAN EVOLUTION · CYBER VOYAGE</p>
-      <h1 class="title-glow">
+      <p class="start-tag start-reveal-item">HUMAN EVOLUTION · CYBER VOYAGE</p>
+      <h1 class="title-glow start-reveal-item">
         <span class="title-inner">
           <span id="title-main">流浪婴儿计划</span>
           <span class="title-scanlines" aria-hidden="true"></span>
         </span>
       </h1>
-      <p class="subtitle">代号：方舟</p>
+      <p class="subtitle start-reveal-item">代号：方舟</p>
     </header>
     <nav class="start-menu">
-      <button type="button" id="btn-start" class="btn-primary btn-breathe">开始漂流</button>
-      <button type="button" id="btn-continue" class="btn-secondary btn-breathe hidden">继续航行</button>
-      <button type="button" id="btn-open-log" class="btn-secondary btn-breathe">航行日志</button>
-      <button type="button" id="btn-open-settings" class="btn-secondary btn-breathe">系统设置</button>
+      <button type="button" id="btn-start" class="btn-primary btn-breathe start-reveal-item">开始漂流</button>
+      <button type="button" id="btn-continue" class="btn-secondary btn-breathe hidden start-reveal-item">继续航行</button>
+      <button type="button" id="btn-open-log" class="btn-secondary btn-breathe start-reveal-item">航行日志</button>
+      <button type="button" id="btn-open-settings" class="btn-secondary btn-breathe start-reveal-item">系统设置</button>
     </nav>
-    <footer class="start-footer">
+    <footer class="start-footer start-reveal-item">
       <span class="dim">v1 · 静态互动版</span>
     </footer>
   </section>

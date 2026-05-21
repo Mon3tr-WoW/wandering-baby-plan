@@ -322,12 +322,94 @@ body {
   100% { transform: scale(1.4); opacity: 0; }
 }
 
-/* Canvas 动态粒子 */
+/* Canvas 动态粒子 + 宇宙场景 */
 .particle-canvas {
   position: fixed;
   inset: 0;
-  z-index: 4;
+  z-index: 5;
   pointer-events: none;
+}
+
+/* 开始页入场黑幕 */
+.start-intro-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  background: #000;
+  pointer-events: none;
+  transition: opacity 0.9s ease;
+}
+
+body.start-intro-active .nebula-bg,
+body.start-intro-active .aurora-sheen {
+  opacity: 0;
+  transition: opacity 1.1s ease;
+}
+
+body.start-intro-active .space-grid,
+body.start-intro-active .circuit-lines,
+body.start-intro-active #particles {
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+body.start-intro-active.intro-bg .nebula-bg,
+body.start-intro-active.intro-bg .aurora-sheen,
+body.start-intro-active.intro-circuits .nebula-bg,
+body.start-intro-active.intro-circuits .aurora-sheen,
+body.start-intro-active.intro-scene .nebula-bg,
+body.start-intro-active.intro-scene .aurora-sheen,
+body.start-intro-active.intro-ui .nebula-bg,
+body.start-intro-active.intro-ui .aurora-sheen {
+  opacity: 1;
+}
+
+body.start-intro-active.intro-bg .space-grid,
+body.start-intro-active.intro-circuits .space-grid,
+body.start-intro-active.intro-scene .space-grid,
+body.start-intro-active.intro-ui .space-grid {
+  opacity: 0.07;
+}
+
+body.start-intro-active.intro-circuits .circuit-lines,
+body.start-intro-active.intro-circuits #particles,
+body.start-intro-active.intro-scene .circuit-lines,
+body.start-intro-active.intro-scene #particles,
+body.start-intro-active.intro-ui .circuit-lines,
+body.start-intro-active.intro-ui #particles {
+  opacity: 1;
+}
+
+#screen-start .start-reveal-item {
+  opacity: 0;
+  transform: translateY(18px);
+  filter: blur(4px);
+  pointer-events: none;
+  transition:
+    opacity 0.85s ease,
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.85s ease;
+}
+
+#screen-start .start-reveal-item.start-revealed {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+  pointer-events: auto;
+}
+
+#screen-start .title-glow.start-revealed {
+  animation: title-emerge 1.2s ease forwards;
+}
+
+@keyframes title-emerge {
+  0% {
+    letter-spacing: 0.35em;
+    text-shadow: 0 0 0 transparent;
+  }
+  100% {
+    letter-spacing: 0.18em;
+  }
 }
 
 .particle-canvas.disabled {
@@ -340,8 +422,17 @@ body {
   .circuit-pulse,
   .aurora-sheen,
   .nebula-bg,
-  .hud-scan-bar {
+  .start-intro-curtain,
+  #screen-start .start-reveal-item {
     animation: none;
+    transition: none;
+  }
+
+  body.start-intro-active .nebula-bg,
+  body.start-intro-active .aurora-sheen,
+  body.start-intro-active .circuit-lines,
+  body.start-intro-active #particles {
+    opacity: 1;
   }
 }
 
@@ -367,81 +458,20 @@ body {
   overflow: hidden;
 }
 
-.start-hud-frame {
-  position: fixed;
-  inset: 8% 10%;
-  z-index: 6;
-  pointer-events: none;
-}
-
-.hud-corner {
-  position: absolute;
-  width: 48px;
-  height: 48px;
-  border-color: rgba(0, 240, 255, 0.35);
-  border-style: solid;
-  opacity: 0.5;
-  animation: hud-corner-pulse 5s ease-in-out infinite;
-}
-
-.hud-tl {
-  top: 0;
-  left: 0;
-  border-width: 2px 0 0 2px;
-}
-
-.hud-tr {
-  top: 0;
-  right: 0;
-  border-width: 2px 2px 0 0;
-  animation-delay: 1.2s;
-}
-
-.hud-bl {
-  bottom: 0;
-  left: 0;
-  border-width: 0 0 2px 2px;
-  animation-delay: 2.4s;
-}
-
-.hud-br {
-  bottom: 0;
-  right: 0;
-  border-width: 0 2px 2px 0;
-  animation-delay: 0.6s;
-}
-
-.hud-scan-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 240, 255, 0.5),
-    rgba(157, 78, 221, 0.4),
-    transparent
-  );
-  box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
-  animation: hud-scan-sweep 8s ease-in-out infinite;
-}
-
-@keyframes hud-corner-pulse {
-  0%, 100% { opacity: 0.35; border-color: rgba(0, 240, 255, 0.25); }
-  50% { opacity: 0.75; border-color: rgba(0, 240, 255, 0.55); }
-}
-
-@keyframes hud-scan-sweep {
-  0% { top: 0; opacity: 0.2; }
-  50% { top: 100%; opacity: 0.6; }
-  100% { top: 0; opacity: 0.2; }
-}
-
 .start-deco {
   position: fixed;
   pointer-events: none;
-  z-index: 5;
+  z-index: 6;
+  opacity: 0.1;
+  transition: opacity 1.2s ease;
+}
+
+body.start-intro-active .start-deco {
+  opacity: 0;
+}
+
+body.start-intro-active.intro-scene .start-deco,
+body.start-intro-active.intro-ui .start-deco {
   opacity: 0.1;
 }
 

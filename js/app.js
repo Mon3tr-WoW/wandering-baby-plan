@@ -4,7 +4,13 @@ import {
   clearSave,
   createFreshSave
 } from './save.js';
-import { initStartFx, setParticlesEnabled } from './start-fx.js';
+import {
+  initStartFx,
+  setParticlesEnabled,
+  playStartIntro,
+  pauseStartMusic,
+  setStartMusicVolume
+} from './start-fx.js';
 
 const WARP_MS = 1600;
 const VIDEO_BASE = 'videos/';
@@ -41,6 +47,7 @@ const els = {
   endingList: $('#ending-list'),
   particles: $('#particles'),
   particleCanvas: $('#particle-canvas'),
+  startMusic: $('#start-music'),
   toggleParticles: $('#toggle-particles'),
   toggleScanline: $('#toggle-scanline'),
   perfectHooks: $('#perfect-hooks')
@@ -51,6 +58,12 @@ function showScreen(name) {
   Object.entries(screens).forEach(([key, el]) => {
     if (el) el.classList.toggle('active', key === name);
   });
+
+  if (name === 'start') {
+    playStartIntro();
+  } else {
+    pauseStartMusic();
+  }
 }
 
 function nodeById(id) {
@@ -171,8 +184,10 @@ async function playWarpTransition() {
 }
 
 function applySettings() {
-  if (els.video) els.video.volume = save.settings.volume ?? 1;
-  if (els.volume) els.volume.value = String(save.settings.volume ?? 1);
+  const vol = save.settings.volume ?? 1;
+  if (els.video) els.video.volume = vol;
+  setStartMusicVolume(vol);
+  if (els.volume) els.volume.value = String(vol);
   if (els.particles) {
     els.particles.classList.toggle('disabled', !save.settings.particles);
   }
@@ -426,6 +441,7 @@ function bindEvents() {
     const v = parseFloat(e.target.value);
     save.settings.volume = v;
     els.video.volume = v;
+    setStartMusicVolume(v);
     persist();
   });
 
@@ -468,7 +484,7 @@ async function init() {
 
   applySettings();
   bindEvents();
-  initStartFx(els.particleCanvas);
+  initStartFx(els.particleCanvas, els.startMusic);
   showScreen('start');
 
   if ($('#title-main')) {
