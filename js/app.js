@@ -9,7 +9,9 @@ import {
   setParticlesEnabled,
   playStartIntro,
   pauseStartMusic,
-  setStartMusicVolume
+  setStartMusicVolume,
+  setStartCanvasActive,
+  setupTitleChars
 } from './start-fx.js';
 
 const WARP_MS = 1600;
@@ -60,8 +62,10 @@ function showScreen(name) {
   });
 
   if (name === 'start') {
+    setStartCanvasActive(true);
     playStartIntro();
   } else {
+    setStartCanvasActive(false);
     pauseStartMusic();
   }
 }
@@ -485,11 +489,11 @@ async function init() {
   applySettings();
   bindEvents();
   initStartFx(els.particleCanvas, els.startMusic);
-  showScreen('start');
 
-  if ($('#title-main')) {
-    $('#title-main').textContent = story.meta.title;
-  }
+  const titleText = story.meta.title || '流浪婴儿计划';
+  setupTitleChars($('#title-main'), titleText);
+
+  showScreen('start');
 }
 
 init();

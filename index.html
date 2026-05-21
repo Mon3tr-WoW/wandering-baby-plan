@@ -6,7 +6,7 @@
   <title>流浪婴儿计划</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/main.css" />
 </head>
 <body>
@@ -32,7 +32,7 @@
   </div>
   <div id="particles" class="particles" aria-hidden="true"></div>
   <canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
-  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="auto"></audio>
+  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="metadata"></audio>
   <div id="start-intro-curtain" class="start-intro-curtain" aria-hidden="true"></div>
 
   <!-- 曲速跳跃转场 -->
@@ -71,13 +71,15 @@
 
     <header class="start-header">
       <p class="start-tag start-reveal-item">HUMAN EVOLUTION · CYBER VOYAGE</p>
-      <h1 class="title-glow start-reveal-item">
+      <h1 class="title-glow">
         <span class="title-inner">
-          <span id="title-main">流浪婴儿计划</span>
+          <span id="title-main" aria-label="流浪婴儿计划"></span>
           <span class="title-scanlines" aria-hidden="true"></span>
         </span>
       </h1>
-      <p class="subtitle start-reveal-item">代号：方舟</p>
+      <p class="subtitle">
+        <span class="sub-part sub-code start-reveal-item">代号：</span><span class="sub-part sub-name start-reveal-item">方舟</span>
+      </p>
     </header>
     <nav class="start-menu">
       <button type="button" id="btn-start" class="btn-primary btn-breathe start-reveal-item">开始漂流</button>

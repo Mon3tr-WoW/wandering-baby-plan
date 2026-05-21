@@ -343,14 +343,14 @@ body {
 body.start-intro-active .nebula-bg,
 body.start-intro-active .aurora-sheen {
   opacity: 0;
-  transition: opacity 1.1s ease;
+  transition: opacity 0.55s ease;
 }
 
 body.start-intro-active .space-grid,
 body.start-intro-active .circuit-lines,
 body.start-intro-active #particles {
   opacity: 0;
-  transition: opacity 1s ease;
+  transition: opacity 0.45s ease;
 }
 
 body.start-intro-active.intro-bg .nebula-bg,
@@ -382,34 +382,49 @@ body.start-intro-active.intro-ui #particles {
 
 #screen-start .start-reveal-item {
   opacity: 0;
-  transform: translateY(18px);
-  filter: blur(4px);
+  visibility: hidden;
+  transform: translateY(10px);
   pointer-events: none;
   transition:
-    opacity 0.85s ease,
-    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.85s ease;
+    opacity 0.4s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.4s;
 }
 
 #screen-start .start-reveal-item.start-revealed {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
-  filter: blur(0);
   pointer-events: auto;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
 }
 
-#screen-start .title-glow.start-revealed {
-  animation: title-emerge 1.2s ease forwards;
+#title-main .title-char {
+  display: inline-block;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease,
+    visibility 0s linear 0.35s;
 }
 
-@keyframes title-emerge {
-  0% {
-    letter-spacing: 0.35em;
-    text-shadow: 0 0 0 transparent;
-  }
-  100% {
-    letter-spacing: 0.18em;
-  }
+#title-main .title-char.title-char-revealed {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease,
+    visibility 0s;
+}
+
+.subtitle .sub-part.start-reveal-item {
+  display: inline;
 }
 
 .particle-canvas.disabled {
