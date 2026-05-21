@@ -1,0 +1,38 @@
+# 用 GitHub Actions 部署 Pages，并正确拉取 LFS 视频
+# （直接从分支部署 Pages 时，LFS 视频可能无法正常播放）
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码（含 LFS 大文件）
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: 配置 Pages
+        uses: actions/configure-pages@v5
+
+      - name: 上传站点文件
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

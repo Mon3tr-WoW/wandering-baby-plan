@@ -1,0 +1,441 @@
+import {
+  loadSave,
+  writeSave,
+  clearSave,
+  createFreshSave
+} from './save.js';
+
+const WARP_MS = 1600;
+const VIDEO_BASE = 'videos/';
+
+/** @type {import('./story-types').StoryData} */
+let story = null;
+/** @type {ReturnType<typeof createFreshSave>} */
+let save = null;
+
+let screen = 'start';
+
+const $ = (sel) => document.querySelector(sel);
+
+const screens = {
+  start: $('#screen-start'),
+  game: $('#screen-game'),
+  log: $('#screen-log'),
+  settings: $('#screen-settings'),
+  ending: $('#screen-ending')
+};
+
+const els = {
+  video: $('#main-video'),
+  videoWrap: $('#video-wrap'),
+  scanline: $('#scanline-overlay'),
+  choices: $('#choices-panel'),
+  shipLog: $('#ship-log-text'),
+  coord: $('#hud-coord'),
+  starMap: $('#star-map'),
+  volume: $('#volume-slider'),
+  warp: $('#warp-overlay'),
+  endingTitle: $('#ending-title'),
+  endingDesc: $('#ending-desc'),
+  endingList: $('#ending-list'),
+  particles: $('#particles'),
+  toggleParticles: $('#toggle-particles'),
+  toggleScanline: $('#toggle-scanline'),
+  perfectHooks: $('#perfect-hooks')
+};
+
+function showScreen(name) {
+  screen = name;
+  Object.entries(screens).forEach(([key, el]) => {
+    if (el) el.classList.toggle('active', key === name);
+  });
+}
+
+function nodeById(id) {
+  return story?.nodes[id] ?? null;
+}
+
+function videoUrl(node) {
+  return VIDEO_BASE + node.video;
+}
+
+function persist() {
+  writeSave(save);
+}
+
+function unlockEnding(endingKey) {
+  if (!endingKey || save.unlockedEndings.includes(endingKey)) return;
+  save.unlockedEndings.push(endingKey);
+  persist();
+}
+
+function pathIndexOf(nodeId) {
+  return save.path.indexOf(nodeId);
+}
+
+function markVisited(nodeId) {
+  if (!save.visited.includes(nodeId)) {
+    save.visited.push(nodeId);
+  }
+}
+
+function truncatePathAfter(nodeId) {
+  const idx = pathIndexOf(nodeId);
+  if (idx === -1) {
+    save.path = [nodeId];
+  } else {
+    save.path = save.path.slice(0, idx + 1);
+  }
+  save.currentNodeId = nodeId;
+  markVisited(nodeId);
+  persist();
+}
+
+function renderStarMap() {
+  if (!els.starMap) return;
+  els.starMap.innerHTML = '';
+  const ordered = save.path.slice();
+  const extra = save.visited.filter((id) => !ordered.includes(id));
+  const displayIds = [...ordered, ...extra];
+
+  displayIds.forEach((id) => {
+    const node = nodeById(id);
+    if (!node) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'star-node';
+    const onPath = save.path.includes(id);
+    const isCurrent = id === save.currentNodeId;
+    if (onPath) btn.classList.add('on-path');
+    if (isCurrent) btn.classList.add('current');
+    if (node.ending) btn.classList.add('is-ending');
+    btn.dataset.nodeId = id;
+    btn.title = node.title || `节点 ${id}`;
+    btn.innerHTML = `<span class="star-id">${id}</span>`;
+    btn.addEventListener('click', () => jumpToNode(id, true));
+    els.starMap.appendChild(btn);
+  });
+}
+
+function hideChoices() {
+  els.choices?.classList.add('hidden');
+  els.choices.innerHTML = '';
+}
+
+function showChoices(node) {
+  if (!node.choices?.length) {
+    hideChoices();
+    return;
+  }
+  els.choices.classList.remove('hidden');
+  els.choices.innerHTML = '';
+  node.choices.forEach((choice, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'choice-btn';
+    btn.innerHTML = `
+      <span class="choice-label">选项 ${String.fromCharCode(65 + i)}</span>
+      <span class="choice-text">${escapeHtml(choice.text)}</span>
+    `;
+    btn.addEventListener('click', () => onChoiceSelected(choice.next));
+    els.choices.appendChild(btn);
+  });
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function playWarpTransition() {
+  return new Promise((resolve) => {
+    els.warp?.classList.add('active');
+    setTimeout(() => {
+      els.warp?.classList.remove('active');
+      resolve();
+    }, WARP_MS);
+  });
+}
+
+function applySettings() {
+  if (els.video) els.video.volume = save.settings.volume ?? 1;
+  if (els.volume) els.volume.value = String(save.settings.volume ?? 1);
+  if (els.particles) {
+    els.particles.classList.toggle('disabled', !save.settings.particles);
+  }
+  if (els.scanline) {
+    els.scanline?.classList.toggle('hidden', !save.settings.scanline);
+  }
+  if (els.toggleParticles) els.toggleParticles.checked = !!save.settings.particles;
+  if (els.toggleScanline) els.toggleScanline.checked = !!save.settings.scanline;
+}
+
+function updateHud(node) {
+  if (els.coord) els.coord.textContent = `X-${nodeIdToCoord(save.currentNodeId)}`;
+  if (els.shipLog) els.shipLog.textContent = node.log || '';
+}
+
+function nodeIdToCoord(id) {
+  const n = id.replace(/_/g, '');
+  const hash = [...n].reduce((a, c) => a + c.charCodeAt(0), 0);
+  return (9000 + hash * 17) % 10000;
+}
+
+function onVideoEnded() {
+  const node = nodeById(save.currentNodeId);
+  if (!node) return;
+  if (node.ending) {
+    showEndingScreen(node);
+    return;
+  }
+  showChoices(node);
+}
+
+async function loadNodeVideo(node, autoplay = true) {
+  hideChoices();
+  const url = videoUrl(node);
+  els.video.src = url;
+  els.video.load();
+  updateHud(node);
+  renderStarMap();
+
+  if (autoplay) {
+    try {
+      await els.video.play();
+    } catch {
+      /* 浏览器可能阻止自动播放，用户可手动点播放 */
+    }
+  }
+}
+
+async function jumpToNode(nodeId, fromStarMap = false) {
+  const node = nodeById(nodeId);
+  if (!node) return;
+
+  if (fromStarMap) {
+    truncatePathAfter(nodeId);
+  } else {
+    save.currentNodeId = nodeId;
+    markVisited(nodeId);
+    if (save.path[save.path.length - 1] !== nodeId) {
+      save.path.push(nodeId);
+    }
+    persist();
+  }
+
+  showScreen('game');
+  hideEndingUI();
+  await loadNodeVideo(node);
+}
+
+async function onChoiceSelected(nextId) {
+  hideChoices();
+  await playWarpTransition();
+  const node = nodeById(save.currentNodeId);
+  if (!node) return;
+
+  save.currentNodeId = nextId;
+  markVisited(nextId);
+  save.path.push(nextId);
+  persist();
+
+  const next = nodeById(nextId);
+  if (!next) return;
+  await loadNodeVideo(next);
+}
+
+function hideEndingUI() {
+  screens.ending?.classList.remove('active');
+  els.perfectHooks?.classList.add('hidden');
+}
+
+function showEndingScreen(node) {
+  const key = node.ending;
+  const info = story.endings[key] || { title: '未知结局', description: '' };
+  unlockEnding(key);
+  hideChoices();
+
+  if (els.endingTitle) els.endingTitle.textContent = info.title;
+  if (els.endingDesc) els.endingDesc.textContent = info.description;
+
+  const isPerfect = node.flags?.includes('perfect');
+  if (isPerfect && els.perfectHooks) {
+    els.perfectHooks.classList.remove('hidden');
+  } else if (els.perfectHooks) {
+    els.perfectHooks.classList.add('hidden');
+  }
+
+  showScreen('game');
+  screens.ending?.classList.add('active');
+}
+
+function renderEndingLog() {
+  if (!els.endingList || !story) return;
+  els.endingList.innerHTML = '';
+  const allKeys = Object.keys(story.endings);
+  allKeys.forEach((key) => {
+    const info = story.endings[key];
+    const li = document.createElement('li');
+    const unlocked = save.unlockedEndings.includes(key);
+    li.className = unlocked ? 'unlocked' : 'locked';
+    li.innerHTML = unlocked
+      ? `<strong>${escapeHtml(info.title)}</strong><p>${escapeHtml(info.description)}</p>`
+      : `<strong>？？？</strong><p>尚未抵达的结局</p>`;
+    els.endingList.appendChild(li);
+  });
+}
+
+function startNewGame() {
+  save = createFreshSave(story.meta.startNode);
+  persist();
+  showScreen('game');
+  hideEndingUI();
+  jumpToNode(story.meta.startNode, false);
+}
+
+function resumeGame() {
+  if (!save?.currentNodeId) {
+    startNewGame();
+    return;
+  }
+  showScreen('game');
+  hideEndingUI();
+  jumpToNode(save.currentNodeId, false);
+}
+
+async function loadStory() {
+  const res = await fetch('data/story.json');
+  if (!res.ok) throw new Error('无法加载 story.json');
+  story = await res.json();
+}
+
+function bindEvents() {
+  $('#btn-start')?.addEventListener('click', () => {
+    const existing = loadSave();
+    if (existing?.currentNodeId && nodeById(existing.currentNodeId)) {
+      save = existing;
+      applySettings();
+      resumeGame();
+    } else {
+      startNewGame();
+    }
+  });
+
+  $('#btn-continue')?.addEventListener('click', () => {
+    const existing = loadSave();
+    if (existing) {
+      save = existing;
+      applySettings();
+      resumeGame();
+    }
+  });
+
+  $('#btn-new-game')?.addEventListener('click', () => {
+    if (confirm('确定要开始新漂流？当前进度将被清除。')) {
+      clearSave();
+      save = createFreshSave(story.meta.startNode);
+      startNewGame();
+    }
+  });
+
+  $('#btn-open-log')?.addEventListener('click', () => {
+    renderEndingLog();
+    showScreen('log');
+  });
+
+  $('#btn-open-settings')?.addEventListener('click', () => {
+    applySettings();
+    showScreen('settings');
+  });
+
+  $('#btn-back-start')?.addEventListener('click', () => showScreen('start'));
+  $('#btn-back-from-log')?.addEventListener('click', () => showScreen(save?.currentNodeId ? 'game' : 'start'));
+  $('#btn-back-from-settings')?.addEventListener('click', () => showScreen(save?.currentNodeId ? 'game' : 'start'));
+
+  $('#btn-pause')?.addEventListener('click', () => {
+    if (els.video.paused) els.video.play();
+    else els.video.pause();
+  });
+
+  $('#btn-exit-game')?.addEventListener('click', () => {
+    persist();
+    showScreen('start');
+  });
+
+  $('#btn-ending-map')?.addEventListener('click', () => {
+    screens.ending?.classList.remove('active');
+    renderStarMap();
+  });
+
+  $('#btn-ending-restart')?.addEventListener('click', () => {
+    screens.ending?.classList.remove('active');
+    startNewGame();
+  });
+
+  els.video?.addEventListener('ended', onVideoEnded);
+
+  els.video?.addEventListener('timeupdate', () => {
+    const node = nodeById(save?.currentNodeId);
+    if (!node || node.ending || !node.choices?.length) return;
+    if (els.video.duration && els.video.currentTime >= els.video.duration - 0.25) {
+      if (els.choices.classList.contains('hidden')) {
+        showChoices(node);
+      }
+    }
+  });
+
+  els.volume?.addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    save.settings.volume = v;
+    els.video.volume = v;
+    persist();
+  });
+
+  els.toggleParticles?.addEventListener('change', (e) => {
+    save.settings.particles = e.target.checked;
+    applySettings();
+    persist();
+  });
+
+  els.toggleScanline?.addEventListener('change', (e) => {
+    save.settings.scanline = e.target.checked;
+    applySettings();
+    persist();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 12;
+    const y = (e.clientY / window.innerHeight - 0.5) * 8;
+    document.documentElement.style.setProperty('--parallax-x', `${x}px`);
+    document.documentElement.style.setProperty('--parallax-y', `${y}px`);
+  });
+}
+
+async function init() {
+  try {
+    await loadStory();
+  } catch (err) {
+    alert('加载剧情数据失败：' + err.message);
+    return;
+  }
+
+  const existing = loadSave();
+  const continueBtn = $('#btn-continue');
+  if (existing?.currentNodeId && continueBtn) {
+    continueBtn.classList.remove('hidden');
+    save = existing;
+  } else {
+    save = createFreshSave(story.meta.startNode);
+  }
+
+  applySettings();
+  bindEvents();
+  showScreen('start');
+
+  if ($('#title-main')) {
+    $('#title-main').textContent = story.meta.title;
+  }
+}
+
+init();
