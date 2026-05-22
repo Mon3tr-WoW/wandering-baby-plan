@@ -61,6 +61,8 @@ function showScreen(name) {
     if (el) el.classList.toggle('active', key === name);
   });
 
+  document.body.classList.toggle('start-screen-active', name === 'start');
+
   if (name === 'start') {
     setStartCanvasActive(true);
     playStartIntro();

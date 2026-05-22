@@ -322,12 +322,77 @@ body {
   100% { transform: scale(1.4); opacity: 0; }
 }
 
-/* Canvas 动态粒子 + 宇宙场景 */
+/* Canvas 星空远景（位于参考图之下） */
 .particle-canvas {
   position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 4;
   pointer-events: none;
+}
+
+/* 参考图精灵层：screen 混合去除黑底 */
+.start-scene-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: var(--start-scene-alpha, 0);
+  transition: opacity 0.7s ease;
+}
+
+body:not(.start-screen-active) .start-scene-layer {
+  visibility: hidden;
+  opacity: 0 !important;
+}
+
+.start-sprite-wrap {
+  position: absolute;
+  line-height: 0;
+}
+
+.start-sprite {
+  display: block;
+  max-width: none;
+  height: auto;
+  mix-blend-mode: screen;
+  filter: brightness(1.08) contrast(1.12) drop-shadow(0 0 18px rgba(255, 255, 255, 0.22));
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.start-sprite-wrap-ship {
+  left: -1%;
+  bottom: 0;
+  mask-image: radial-gradient(ellipse 88% 78% at 28% 72%, #000 35%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 88% 78% at 28% 72%, #000 35%, transparent 78%);
+}
+
+.start-sprite-ship {
+  width: min(47vw, 820px);
+  animation: sprite-ship-float 9s ease-in-out infinite;
+}
+
+.start-sprite-wrap-planets {
+  right: -2%;
+  top: -1%;
+  mask-image: radial-gradient(ellipse 82% 75% at 72% 28%, #000 38%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 82% 75% at 72% 28%, #000 38%, transparent 80%);
+}
+
+.start-sprite-planets {
+  width: min(50vw, 780px);
+  animation: sprite-planets-float 11s ease-in-out infinite;
+}
+
+@keyframes sprite-ship-float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(6px, -8px); }
+}
+
+@keyframes sprite-planets-float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-5px, 6px); }
 }
 
 /* 开始页入场黑幕 */
@@ -480,6 +545,8 @@ body.start-intro-active.intro-ui #particles {
   .aurora-sheen,
   .nebula-bg,
   .start-intro-curtain,
+  .start-sprite-ship,
+  .start-sprite-planets,
   #screen-start .start-reveal-item {
     animation: none;
     transition: none;
