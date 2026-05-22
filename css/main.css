@@ -354,15 +354,13 @@ body.start-screen-active .particles {
   opacity: 0.45;
 }
 
-/* 参考图精灵层（无边缘遮罩，完整显示） */
+/* 参考图精灵层：星球先入场，飞船后入场 */
 .start-scene-layer {
   position: fixed;
   inset: 0;
   z-index: 6;
   pointer-events: none;
   overflow: visible;
-  opacity: var(--start-scene-alpha, 0);
-  transition: opacity 0.7s ease;
 }
 
 body:not(.start-screen-active) .start-scene-layer {
@@ -388,40 +386,66 @@ body:not(.start-screen-active) .start-scene-layer {
 .start-sprite-wrap-ship {
   left: 0;
   bottom: 0;
+  opacity: var(--start-ship-alpha, 0);
 }
 
 .start-sprite-ship {
   width: min(47vw, 820px);
   filter: brightness(1.04) contrast(1.06);
-  animation: sprite-ship-float 9s ease-in-out infinite;
+  animation: sprite-ship-float 8s ease-in-out infinite;
 }
 
 .start-sprite-wrap-planets {
-  right: 1%;
-  top: 1%;
-  transform: translateX(-5%);
+  right: 0;
+  top: 0;
+  opacity: var(--start-planets-alpha, 0);
+  -webkit-mask-image: radial-gradient(
+    ellipse 96% 96% at 52% 42%,
+    #000 0%,
+    #000 88%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 96% 96% at 52% 42%,
+    #000 0%,
+    #000 88%,
+    transparent 100%
+  );
 }
 
 .start-sprite-planets {
-  width: min(44vw, 720px);
+  display: block;
+  width: min(56vw, 900px);
+  max-height: min(48vh, 520px);
+  height: auto;
   object-fit: contain;
-  object-position: 40% 50%;
+  object-position: 100% 0%;
   filter: brightness(1.04) contrast(1.06);
-  animation: sprite-planets-float 11s ease-in-out infinite;
+  animation: sprite-planets-float 12s ease-in-out infinite;
 }
 
 @keyframes sprite-ship-float {
   0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(6px, -8px); }
+  50% { transform: translate(11px, -14px); }
 }
 
 @keyframes sprite-planets-float {
   0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-4px, 5px); }
+  50% { transform: translate(-2px, 3px); }
 }
 
-.start-sprite-wrap-planets .start-sprite-planets {
-  animation: sprite-planets-float 11s ease-in-out infinite;
+@media (max-width: 900px) {
+  .start-sprite-planets {
+    width: min(52vw, 640px);
+    max-height: min(42vh, 400px);
+  }
+}
+
+@media (max-height: 700px) {
+  .start-sprite-planets {
+    max-height: 38vh;
+    width: min(50vw, 720px);
+  }
 }
 
 /* 开始页入场黑幕 */

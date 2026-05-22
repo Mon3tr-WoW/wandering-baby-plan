@@ -31,7 +31,9 @@ const INTRO = {
   bgEnd: 0.85,
   circuitsEnd: 1.55,
   sceneBegin: 1.7,
-  sceneRamp: 0.65,
+  planetsRamp: 0.8,
+  shipDelay: 0.15,
+  shipRamp: 0.65,
   titleAt: 5.0,
   charStep: 0.1,
   tagAt: 5.75,
@@ -127,9 +129,25 @@ function hideUnlockHint() {
   document.getElementById('start-unlock-hint')?.classList.add('hidden');
 }
 
-function setSceneVisualAlpha(a) {
-  sceneAlpha = a;
-  document.documentElement.style.setProperty('--start-scene-alpha', String(a));
+function setSpriteAlphas(planetsA, shipA) {
+  const p = Math.max(0, Math.min(1, planetsA));
+  const s = Math.max(0, Math.min(1, shipA));
+  sceneAlpha = Math.max(p, s);
+  document.documentElement.style.setProperty('--start-planets-alpha', String(p));
+  document.documentElement.style.setProperty('--start-ship-alpha', String(s));
+}
+
+function computeSpriteAlphas(t) {
+  let planetsA = 0;
+  let shipA = 0;
+  if (t >= INTRO.sceneBegin) {
+    planetsA = Math.min(1, (t - INTRO.sceneBegin) / INTRO.planetsRamp);
+  }
+  const shipStart = INTRO.sceneBegin + INTRO.planetsRamp + INTRO.shipDelay;
+  if (t >= shipStart) {
+    shipA = Math.min(1, (t - shipStart) / INTRO.shipRamp);
+  }
+  return { planetsA, shipA };
 }
 
 async function tryPlayMusic() {
@@ -396,9 +414,8 @@ function applyIntroTime(t) {
   else if (t < INTRO.titleAt) setBodyIntroClass('intro-scene');
   else setBodyIntroClass('intro-ui');
 
-  const a =
-    t >= INTRO.sceneBegin ? Math.min(1, (t - INTRO.sceneBegin) / INTRO.sceneRamp) : 0;
-  setSceneVisualAlpha(a);
+  const { planetsA, shipA } = computeSpriteAlphas(t);
+  setSpriteAlphas(planetsA, shipA);
 
   revealTitleChars(t);
   revealElement('#screen-start .start-tag', t >= INTRO.tagAt);
@@ -418,7 +435,7 @@ function finishIntroInstant() {
     curtain.classList.add('hidden');
   }
   setBodyIntroClass('intro-ui');
-  setSceneVisualAlpha(1);
+  setSpriteAlphas(1, 1);
   hideUnlockHint();
   document.querySelectorAll('#title-main .title-char').forEach((el) => {
     el.classList.add('title-char-revealed');
@@ -458,7 +475,7 @@ export function initStartFx(targetCanvas, audioEl) {
   window.addEventListener('resize', resize);
   bindAudioUnlock();
   canvasActive = true;
-  setSceneVisualAlpha(0);
+  setSpriteAlphas(0, 0);
   if (!rafId) rafId = requestAnimationFrame(tick);
 }
 
@@ -472,7 +489,7 @@ export async function playStartIntro() {
     el.classList.remove('title-char-revealed');
   });
 
-  setSceneVisualAlpha(0);
+  setSpriteAlphas(0, 0);
   meteors = [];
   meteorCooldown = rand(400, 900);
   introClockStart = performance.now();

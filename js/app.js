@@ -13,6 +13,12 @@ import {
   setStartCanvasActive,
   setupTitleChars
 } from './start-fx.js';
+import {
+  initStartSfx,
+  setSfxMasterVolume,
+  playButtonChoose,
+  playButtonConfirm
+} from './start-sfx.js';
 
 const WARP_MS = 1600;
 const VIDEO_BASE = 'videos/';
@@ -193,6 +199,7 @@ function applySettings() {
   const vol = save.settings.volume ?? 1;
   if (els.video) els.video.volume = vol;
   setStartMusicVolume(vol);
+  setSfxMasterVolume(vol);
   if (els.volume) els.volume.value = String(vol);
   if (els.particles) {
     els.particles.classList.toggle('disabled', !save.settings.particles);
@@ -368,7 +375,35 @@ async function loadStory() {
   story = await res.json();
 }
 
+function bindStartMenuSfx() {
+  const menu = document.querySelector('#screen-start .start-menu');
+  if (!menu) return;
+
+  let hoverBtn = null;
+
+  menu.addEventListener('mouseover', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || !menu.contains(btn) || btn.classList.contains('hidden')) return;
+    if (btn === hoverBtn) return;
+    hoverBtn = btn;
+    playButtonChoose();
+  });
+
+  menu.addEventListener('mouseleave', () => {
+    hoverBtn = null;
+  });
+
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn && menu.contains(btn)) {
+      playButtonConfirm();
+    }
+  });
+}
+
 function bindEvents() {
+  bindStartMenuSfx();
+
   $('#btn-start')?.addEventListener('click', () => {
     const existing = loadSave();
     if (existing?.currentNodeId && nodeById(existing.currentNodeId)) {
@@ -448,6 +483,7 @@ function bindEvents() {
     save.settings.volume = v;
     els.video.volume = v;
     setStartMusicVolume(v);
+    setSfxMasterVolume(v);
     persist();
   });
 
@@ -490,6 +526,7 @@ async function init() {
 
   applySettings();
   bindEvents();
+  initStartSfx();
   initStartFx(els.particleCanvas, els.startMusic);
 
   const titleText = story.meta.title || '流浪婴儿计划';
