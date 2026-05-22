@@ -1,5 +1,5 @@
 /**
- * 开始界面：Canvas 星空远景 + 参考图精灵（飞船/星球）+ 入场时间轴
+ * 开始界面：全屏星空远景 + 参考图精灵 + 入场时间轴
  */
 
 /** @type {HTMLCanvasElement | null} */
@@ -13,7 +13,6 @@ let particles = [];
 let meteors = [];
 let deepStars = [];
 let brightStars = [];
-let galaxyArmDots = [];
 let rafId = 0;
 let enabled = true;
 let canvasActive = false;
@@ -71,42 +70,27 @@ function spawnParticle() {
 
 function buildDeepSky() {
   deepStars = [];
-  for (let i = 0; i < 420; i++) {
+  const count = Math.min(200, Math.floor((width * height) / 12000));
+  for (let i = 0; i < count; i++) {
     deepStars.push({
-      x: seeded(i * 1.7) * width,
-      y: seeded(i * 2.3) * height,
-      r: rand(0.3, 1.25),
-      a: rand(0.12, 0.65),
-      ph: seeded(i * 4.1) * Math.PI * 2
+      x: seeded(i * 1.91) * width,
+      y: seeded(i * 2.47) * height,
+      r: rand(0.45, 1.05),
+      a: rand(0.25, 0.75),
+      ph: seeded(i * 4.3) * Math.PI * 2
     });
   }
 
   brightStars = [];
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 22; i++) {
     brightStars.push({
-      x: seeded(i * 9.2) * width,
-      y: seeded(i * 6.5) * height,
-      r: rand(1.3, 2.8),
-      a: rand(0.65, 1),
-      ph: seeded(i * 3.3) * Math.PI * 2,
-      spikes: seeded(i * 1.1) > 0.25
-    });
-  }
-
-  galaxyArmDots = [];
-  const gx = width * 0.38;
-  const gy = height * 0.34;
-  for (let i = 0; i < 240; i++) {
-    const arm = i % 2;
-    const t = seeded(i * 2.7) * Math.PI * 4;
-    const dist = seeded(i * 5.1) * Math.min(width, height) * 0.26;
-    const spread = seeded(i * 8.3) * 32 - 16;
-    const ang = t + arm * Math.PI + 0.35;
-    galaxyArmDots.push({
-      x: gx + Math.cos(ang) * dist + spread * 0.3,
-      y: gy + Math.sin(ang) * dist * 0.55 + spread * 0.2,
-      r: rand(0.45, 2.2),
-      a: rand(0.15, 0.62)
+      x: seeded(i * 9.7) * width,
+      y: seeded(i * 6.9) * height,
+      r: rand(1.6, 3.2),
+      a: rand(0.75, 1),
+      ph: seeded(i * 3.8) * Math.PI * 2,
+      spikeLen: rand(10, 18),
+      twSpeed: rand(2.8, 5.5)
     });
   }
 }
@@ -115,12 +99,13 @@ function resize() {
   if (!canvas) return;
   width = window.innerWidth;
   height = window.innerHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = true;
 
   const count = Math.min(130, Math.floor((width * height) / 9000));
   particles = Array.from({ length: count }, spawnParticle);
@@ -180,107 +165,74 @@ function bindAudioUnlock() {
 }
 
 function spawnMeteor() {
-  const angle = rand(0.7, 0.9) * Math.PI;
-  const speed = rand(8, 14);
+  const angle = rand(0.68, 0.92) * Math.PI;
+  const speed = rand(9, 16);
   meteors.push({
-    x: rand(-width * 0.05, width * 0.55),
-    y: rand(-100, height * 0.42),
+    x: rand(0, width * 0.65),
+    y: rand(-120, height * 0.45),
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
-    len: rand(80, 160),
+    len: rand(100, 200),
     life: 0,
-    maxLife: rand(65, 110),
-    core: rand(1.2, 2.2)
+    maxLife: rand(55, 95),
+    core: rand(2.8, 5.2)
   });
 }
 
-function drawGlowDot(x, y, r, alpha) {
+/** 锐利星点：小光晕 + 清晰核心 */
+function drawSharpStar(x, y, r, alpha, layerA) {
+  const a = alpha * layerA;
+  if (a < 0.02) return;
   ctx.beginPath();
-  ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.14})`;
+  ctx.arc(x, y, r * 1.15, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.22})`;
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.95})`;
+  ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
   ctx.fill();
 }
 
-function drawStarSpikes(x, y, r, alpha) {
-  const len = r * 6;
+function drawStarSpikes(x, y, r, len, alpha, layerA) {
+  const a = alpha * layerA;
+  if (a < 0.05) return;
   ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.lineWidth = 0.75;
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+  ctx.lineWidth = 1.1;
   ctx.lineCap = 'round';
   for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI;
+    const ang = (i / 4) * Math.PI;
     ctx.beginPath();
-    ctx.moveTo(x - Math.cos(a) * len, y - Math.sin(a) * len);
-    ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    ctx.moveTo(x - Math.cos(ang) * len, y - Math.sin(ang) * len);
+    ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
     ctx.stroke();
   }
   ctx.restore();
 }
 
-/** 星空远景：星场、亮星芒、星系光斑 */
+/** 全画面均匀星野 + 分散远景光斑 */
 function drawDeepSky(t, layerA) {
   if (layerA < 0.03) return;
 
   ctx.save();
-  const gx = width * 0.36;
-  const gy = height * 0.33;
 
   for (const st of deepStars) {
-    const tw = 0.5 + Math.sin(t * 1.6 + st.ph) * 0.5;
-    ctx.globalAlpha = st.a * tw * layerA;
-    ctx.beginPath();
-    ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-  }
-
-  ctx.globalAlpha = layerA * 0.22;
-  const coreGrad = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.min(width, height) * 0.32);
-  coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
-  coreGrad.addColorStop(0.35, 'rgba(210, 225, 255, 0.12)');
-  coreGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = coreGrad;
-  ctx.fillRect(0, 0, width, height);
-
-  for (const d of galaxyArmDots) {
-    ctx.globalAlpha = d.a * layerA * 0.85;
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.fill();
-  }
-
-  for (let arm = 0; arm < 2; arm++) {
-    ctx.globalAlpha = layerA * 0.28;
-    ctx.beginPath();
-    for (let i = 0; i <= 28; i++) {
-      const ang = arm * Math.PI + 0.45 + (i / 28) * 2.4;
-      const dist = (i / 28) * Math.min(width, height) * 0.3;
-      const px = gx + Math.cos(ang) * dist;
-      const py = gy + Math.sin(ang) * dist * 0.52;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    const tw = 0.65 + Math.sin(t * 1.4 + st.ph) * 0.35;
+    drawSharpStar(st.x, st.y, st.r, st.a * tw, layerA);
   }
 
   const smudges = [
-    [0.76, 0.14, 0.055], [0.86, 0.24, 0.04], [0.22, 0.16, 0.045], [0.58, 0.08, 0.035]
+    [0.18, 0.22, 0.028], [0.82, 0.18, 0.025], [0.72, 0.78, 0.022],
+    [0.15, 0.72, 0.024], [0.5, 0.12, 0.02], [0.55, 0.88, 0.02]
   ];
   for (const [nx, ny, nr] of smudges) {
     const sx = width * nx;
     const sy = height * ny;
     const rr = Math.min(width, height) * nr;
-    ctx.globalAlpha = layerA * 0.14;
+    ctx.globalAlpha = layerA * 0.09;
     const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
-    g.addColorStop(0, 'rgba(255,255,255,0.4)');
+    g.addColorStop(0, 'rgba(255,255,255,0.35)');
     g.addColorStop(1, 'transparent');
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -289,22 +241,24 @@ function drawDeepSky(t, layerA) {
   }
 
   for (const st of brightStars) {
-    const tw = 0.55 + Math.sin(t * 2.2 + st.ph) * 0.45;
-    const a = st.a * tw * layerA;
-    drawGlowDot(st.x, st.y, st.r, a);
-    if (st.spikes) drawStarSpikes(st.x, st.y, st.r, a * 0.55);
+    const tw = 0.35 + Math.sin(t * st.twSpeed + st.ph) * 0.65;
+    const flash = 0.5 + Math.pow(Math.max(0, Math.sin(t * st.twSpeed * 1.3 + st.ph * 2)), 3) * 0.5;
+    const a = st.a * (0.55 + tw * 0.45) * flash;
+    drawSharpStar(st.x, st.y, st.r, a, layerA);
+    drawStarSpikes(st.x, st.y, st.r, st.spikeLen, a * 0.95, layerA);
   }
 
   ctx.restore();
 }
 
 function drawMeteors(dt, layerA) {
-  if (layerA > 0.2) {
+  if (layerA > 0.15) {
     meteorCooldown -= dt;
     if (meteorCooldown <= 0) {
       spawnMeteor();
-      if (Math.random() > 0.55) spawnMeteor();
-      meteorCooldown = rand(1400, 2800);
+      if (Math.random() > 0.35) spawnMeteor();
+      if (Math.random() > 0.7) spawnMeteor();
+      meteorCooldown = rand(700, 1400);
     }
   }
 
@@ -313,30 +267,40 @@ function drawMeteors(dt, layerA) {
     m.life++;
     m.x += m.vx;
     m.y += m.vy;
-    if (m.life > m.maxLife || m.x > width + 120 || m.y > height + 120) {
+    if (m.life > m.maxLife || m.x > width + 150 || m.y > height + 150) {
       meteors.splice(i, 1);
       continue;
     }
+
     const fade = 1 - m.life / m.maxLife;
     const spd = Math.hypot(m.vx, m.vy) || 1;
     const tailX = m.x - (m.vx / spd) * m.len;
     const tailY = m.y - (m.vy / spd) * m.len;
+    const a = layerA * fade;
 
     ctx.save();
-    ctx.globalAlpha = layerA * fade * 0.92;
+    ctx.globalAlpha = a * 0.75;
     const grad = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
     grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    grad.addColorStop(0.4, 'rgba(200, 230, 255, 0.3)');
-    grad.addColorStop(0.8, 'rgba(0, 240, 255, 0.55)');
+    grad.addColorStop(0.55, 'rgba(220, 240, 255, 0.55)');
     grad.addColorStop(1, 'rgba(255, 255, 255, 1)');
     ctx.strokeStyle = grad;
-    ctx.lineWidth = m.core;
+    ctx.lineWidth = Math.max(1.5, m.core * 0.45);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(tailX, tailY);
     ctx.lineTo(m.x, m.y);
     ctx.stroke();
-    drawGlowDot(m.x, m.y, m.core, layerA * fade * 0.9);
+
+    ctx.globalAlpha = a;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.core * 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.core * 0.45, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+    ctx.fill();
     ctx.restore();
   }
 }
@@ -361,15 +325,14 @@ function tick(now) {
     sceneAlpha > 0.01
       ? sceneAlpha
       : document.body.classList.contains('intro-circuits')
-        ? 0.22
+        ? 0.2
         : document.body.classList.contains('intro-bg')
-          ? 0.08
+          ? 0.06
           : 0;
 
   ctx.clearRect(0, 0, width, height);
-
   drawDeepSky(floatT, skyA);
-  drawMeteors(dt, Math.max(skyA, sceneAlpha * 0.85));
+  drawMeteors(dt, Math.max(skyA, sceneAlpha * 0.9));
 
   if (enabled) {
     for (const p of particles) {
@@ -382,16 +345,7 @@ function tick(now) {
         p.y = height + rand(0, 30);
       }
       const a = p.alpha * flicker * Math.max(0.35, skyA);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${p.hue}, 90%, 72%, ${a})`;
-      ctx.fill();
-      if (p.r > 1 && flicker > 0.65) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${p.hue}, 90%, 70%, ${a * 0.12})`;
-        ctx.fill();
-      }
+      drawSharpStar(p.x, p.y, p.r, a, 1);
     }
   }
 
@@ -520,7 +474,7 @@ export async function playStartIntro() {
 
   setSceneVisualAlpha(0);
   meteors = [];
-  meteorCooldown = rand(600, 1200);
+  meteorCooldown = rand(400, 900);
   introClockStart = performance.now();
   introAudioSynced = false;
   introRunning = true;

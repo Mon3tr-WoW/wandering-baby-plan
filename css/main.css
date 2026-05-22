@@ -1,6 +1,6 @@
 /* 流浪婴儿计划 — 宇宙航行 · 赛博朋克科幻 UI */
 :root {
-  --bg-deep: #050510;
+  --bg-deep: #000000;
   --aurora: #00f0ff;
   --holo: #9d4edd;
   --text: #e8f4ff;
@@ -330,13 +330,37 @@ body {
   pointer-events: none;
 }
 
-/* 参考图精灵层：screen 混合去除黑底 */
+/* 开始页：纯黑底层，避免与参考图黑底冲突 */
+body.start-screen-active {
+  background: #000;
+}
+
+body.start-screen-active .nebula-bg {
+  background: #000;
+  animation: none;
+  filter: none;
+}
+
+body.start-screen-active .aurora-sheen {
+  opacity: 0;
+  animation: none;
+}
+
+body.start-screen-active .space-grid {
+  opacity: 0.035;
+}
+
+body.start-screen-active .particles {
+  opacity: 0.45;
+}
+
+/* 参考图精灵层（无边缘遮罩，完整显示） */
 .start-scene-layer {
   position: fixed;
   inset: 0;
   z-index: 6;
   pointer-events: none;
-  overflow: hidden;
+  overflow: visible;
   opacity: var(--start-scene-alpha, 0);
   transition: opacity 0.7s ease;
 }
@@ -355,33 +379,34 @@ body:not(.start-screen-active) .start-scene-layer {
   display: block;
   max-width: none;
   height: auto;
-  mix-blend-mode: screen;
-  filter: brightness(1.08) contrast(1.12) drop-shadow(0 0 18px rgba(255, 255, 255, 0.22));
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
   -webkit-user-select: none;
   user-select: none;
 }
 
 .start-sprite-wrap-ship {
-  left: -1%;
+  left: 0;
   bottom: 0;
-  mask-image: radial-gradient(ellipse 88% 78% at 28% 72%, #000 35%, transparent 78%);
-  -webkit-mask-image: radial-gradient(ellipse 88% 78% at 28% 72%, #000 35%, transparent 78%);
 }
 
 .start-sprite-ship {
   width: min(47vw, 820px);
+  filter: brightness(1.04) contrast(1.06);
   animation: sprite-ship-float 9s ease-in-out infinite;
 }
 
 .start-sprite-wrap-planets {
-  right: -2%;
-  top: -1%;
-  mask-image: radial-gradient(ellipse 82% 75% at 72% 28%, #000 38%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse 82% 75% at 72% 28%, #000 38%, transparent 80%);
+  right: 1%;
+  top: 1%;
+  transform: translateX(-5%);
 }
 
 .start-sprite-planets {
-  width: min(50vw, 780px);
+  width: min(44vw, 720px);
+  object-fit: contain;
+  object-position: 40% 50%;
+  filter: brightness(1.04) contrast(1.06);
   animation: sprite-planets-float 11s ease-in-out infinite;
 }
 
@@ -392,7 +417,11 @@ body:not(.start-screen-active) .start-scene-layer {
 
 @keyframes sprite-planets-float {
   0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-5px, 6px); }
+  50% { transform: translate(-4px, 5px); }
+}
+
+.start-sprite-wrap-planets .start-sprite-planets {
+  animation: sprite-planets-float 11s ease-in-out infinite;
 }
 
 /* 开始页入场黑幕 */
