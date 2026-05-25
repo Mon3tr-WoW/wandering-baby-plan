@@ -45,6 +45,13 @@ export default {
     const origin = request.headers.get('Origin') || '';
     const cors = corsHeaders(origin, allowedOrigins);
 
+    if (request.method === 'GET') {
+      return new Response(
+        `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>LLM 代理运行中</title></head><body style="font-family:sans-serif;background:#0a0814;color:#e8f4ff;padding:2rem"><h1>✓ 流浪婴儿计划 · LLM 代理</h1><p>Worker 已在线。请在游戏内「与新人类对话」发送消息（本页不支持 GET 对话）。</p><p style="color:#6b7d9a">若游戏内仍失败，请确认已 push <code>js/llm-proxy-config.js</code> 中的 proxyUrl，并检查交大 API 是否允许公网访问。</p></body></html>`,
+        { status: 200, headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8' } }
+      );
+    }
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
     }

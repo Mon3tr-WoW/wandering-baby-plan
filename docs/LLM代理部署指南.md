@@ -76,7 +76,7 @@ npx wrangler deploy
 | `LLM_MODEL` | Plain text | `deepseek-chat` |
 | `ALLOWED_ORIGINS` | Plain text | `https://mon3tr-wow.github.io` |
 
-⚠️ `ALLOWED_ORIGINS` 必须包含你的 Pages 域名，防止别人盗用你的代理。
+⚠️ 填完变量后，必须回到 Worker 编辑器点 **Save and deploy**（或 Deploy），否则变量不生效。
 
 保存后 Worker 会自动重新部署。
 
@@ -106,6 +106,11 @@ export const LLM_PROXY = {
 ```
 
 把 `proxyUrl` 换成你的 Worker 地址。**这里只有 URL，没有 Key，可以安全提交到 GitHub。**
+
+⚠️ **常见遗漏：** 只在本地改了 `llm-proxy-config.js`，忘记 `git push` —— Pages 上的 `proxyUrl` 仍是空的，游戏就会提示「尚未启用 LLM 代理」。  
+推送后可在浏览器打开验证：  
+<https://mon3tr-wow.github.io/wandering-baby-plan/js/llm-proxy-config.js>  
+应能看到你的 `proxyUrl` 地址，而不是空字符串 `''`。
 
 ---
 
@@ -141,6 +146,19 @@ git push origin main
 ---
 
 ## 常见问题
+
+### Q：提示「线上尚未启用 LLM 代理」
+
+1. 打开 <https://mon3tr-wow.github.io/wandering-baby-plan/js/llm-proxy-config.js>  
+2. 若 `proxyUrl: ''` 仍是空的 → **本地改完后没有 push**  
+3. 在 PowerShell 执行 `git add js/llm-proxy-config.js` → `git commit` → `git push`  
+4. 等 Actions 绿勾后 **Ctrl+Shift+R** 强刷游戏页
+
+### Q：浏览器打开 Worker 地址显示「无法访问此页面」
+
+- **正常情况：** 旧版 Worker 只接受 POST，浏览器 GET 可能报错；更新 `worker/llm-proxy.js` 后 GET 会显示「代理运行中」页面  
+- **若完全打不开（DNS 错误）：** 国内网络可能无法访问 `*.workers.dev`，需换网络/VPN 测试，或改用国内云函数代理（见文末）  
+- **验证 Worker 是否在线：** 能打开并看到 JSON `Method not allowed` 或「LLM 代理运行中」即表示 Worker 本身正常
 
 ### Q：提示「代理 403 Origin not allowed」
 
