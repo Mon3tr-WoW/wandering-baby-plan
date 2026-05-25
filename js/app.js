@@ -19,6 +19,7 @@ import {
   playButtonChoose,
   playButtonConfirm
 } from './start-sfx.js';
+import { setupLlmChat, showPerfectLlmButton } from './llm-chat.js';
 
 const WARP_MS = 1600;
 const VIDEO_BASE = 'videos/';
@@ -313,6 +314,7 @@ async function onChoiceSelected(nextId) {
 function hideEndingUI() {
   screens.ending?.classList.remove('active');
   els.perfectHooks?.classList.add('hidden');
+  showPerfectLlmButton(false);
 }
 
 function showEndingScreen(node) {
@@ -325,6 +327,7 @@ function showEndingScreen(node) {
   if (els.endingDesc) els.endingDesc.textContent = info.description;
 
   const isPerfect = node.flags?.includes('perfect');
+  showPerfectLlmButton(isPerfect);
   if (isPerfect && els.perfectHooks) {
     els.perfectHooks.classList.remove('hidden');
   } else if (els.perfectHooks) {
@@ -527,6 +530,7 @@ async function init() {
   applySettings();
   bindEvents();
   initStartSfx();
+  await setupLlmChat();
   initStartFx(els.particleCanvas, els.startMusic);
 
   const titleText = story.meta.title || '流浪婴儿计划';
