@@ -20,9 +20,9 @@ import {
   playButtonConfirm
 } from './start-sfx.js';
 import { setupLlmChat, showPerfectLlmButton } from './llm-chat.js';
+import { VIDEO_BASE } from './video-config.js';
 
 const WARP_MS = 1600;
-const VIDEO_BASE = 'videos/';
 
 /** @type {import('./story-types').StoryData} */
 let story = null;

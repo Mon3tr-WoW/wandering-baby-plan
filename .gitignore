@@ -1,1 +1,6 @@
 js/llm-config.js
+
+# 剧情视频改由 GitHub Releases 托管，勿再提交大文件进仓库
+videos/*
+!videos/README.md
+!videos/.gitkeep
