@@ -1,12 +1,9 @@
 /**
- * Cloudflare Worker：LLM API 代理
- *
- * API Key 只存在 Worker 的加密环境变量 LLM_API_KEY 中，不会出现在前端或 GitHub 仓库。
- *
- * 部署：见 docs/LLM代理部署指南.md
+ * Cloudflare Worker：讯飞星火 Spark Lite 代理
+ * 环境变量 SPARK_API_PASSWORD = 控制台 HTTP 接口 APIPassword
  */
 
-const DEFAULT_BASE = 'https://models.sjtu.edu.cn/api/v1';
+const SPARK_BASE = 'https://spark-api-open.xf-yun.com/v1';
 
 function corsHeaders(origin, allowedOrigins) {
   const list = allowedOrigins
@@ -25,7 +22,7 @@ function corsHeaders(origin, allowedOrigins) {
 
   return {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
     'Access-Control-Allow-Headers': 'Content-Type, Accept',
     'Access-Control-Max-Age': '86400'
   };
@@ -38,8 +35,11 @@ function json(data, status, headers) {
   });
 }
 
+function getSparkPassword(env) {
+  return env.SPARK_API_PASSWORD?.trim() || env.LLM_API_KEY?.trim() || '';
+}
+
 export default {
-  /** @param {Request} request @param {Record<string, string>} env */
   async fetch(request, env) {
     const allowedOrigins = env.ALLOWED_ORIGINS || 'https://mon3tr-wow.github.io';
     const origin = request.headers.get('Origin') || '';
@@ -47,8 +47,8 @@ export default {
 
     if (request.method === 'GET') {
       return new Response(
-        `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>LLM 代理运行中</title></head><body style="font-family:sans-serif;background:#0a0814;color:#e8f4ff;padding:2rem"><h1>✓ 流浪婴儿计划 · LLM 代理</h1><p>Worker 已在线。请在游戏内「与新人类对话」发送消息（本页不支持 GET 对话）。</p><p style="color:#6b7d9a">若游戏内仍失败，请确认已 push <code>js/llm-proxy-config.js</code> 中的 proxyUrl，并检查交大 API 是否允许公网访问。</p></body></html>`,
-        { status: 200, headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8' } }
+        '✓ 流浪婴儿计划 · 星火 Lite 代理 (Cloudflare Worker) 运行中',
+        { status: 200, headers: { ...cors, 'Content-Type': 'text/plain; charset=utf-8' } }
       );
     }
 
@@ -60,8 +60,9 @@ export default {
       return json({ error: 'Method not allowed' }, 405, cors);
     }
 
-    if (!env.LLM_API_KEY?.trim()) {
-      return json({ error: 'Worker 未配置 LLM_API_KEY' }, 500, cors);
+    const apiPassword = getSparkPassword(env);
+    if (!apiPassword) {
+      return json({ error: 'Worker 未配置 SPARK_API_PASSWORD' }, 500, cors);
     }
 
     const list = allowedOrigins.split(',').map((s) => s.trim()).filter(Boolean);
@@ -83,19 +84,18 @@ export default {
       return json({ error: 'messages required' }, 400, cors);
     }
 
-    const base = (env.LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
-    const upstream = `${base}/chat/completions`;
+    const base = (env.SPARK_BASE_URL || SPARK_BASE).replace(/\/$/, '');
 
     try {
-      const upstreamRes = await fetch(upstream, {
+      const upstreamRes = await fetch(`${base}/chat/completions`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${env.LLM_API_KEY.trim()}`
+          Authorization: `Bearer ${apiPassword}`
         },
         body: JSON.stringify({
-          model: payload.model || env.LLM_MODEL || 'deepseek-chat',
+          model: payload.model || env.SPARK_MODEL || 'lite',
           messages: payload.messages,
           stream: false,
           max_tokens: payload.max_tokens ?? 1024,

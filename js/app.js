@@ -21,6 +21,16 @@ import {
   playButtonConfirm
 } from './start-sfx.js';
 import { VIDEO_BASE } from './video-config.js';
+import {
+  loadProxyUrlOverride,
+  saveProxyUrlOverride,
+  clearProxyUrlOverride,
+  loadSparkPasswordOverride,
+  saveSparkPasswordOverride,
+  clearSparkPasswordOverride,
+  hasSparkPasswordOverride
+} from './llm-storage.js';
+import { reloadLlmRuntimeConfig, getLlmModeLabel } from './llm.js';
 
 const WARP_MS = 1600;
 
@@ -430,8 +440,91 @@ function bindStartMenuSfx() {
   });
 }
 
+function updateLlmSparkSettingsUi() {
+  const input = $('#llm-spark-password');
+  const status = $('#llm-spark-status');
+  if (status) {
+    status.textContent = hasSparkPasswordOverride()
+      ? '已保存 APIPassword（本机）· ' + getLlmModeLabel()
+      : '未配置 APIPassword';
+  }
+  if (input && !input.matches(':focus') && hasSparkPasswordOverride()) {
+    input.value = '********';
+  }
+}
+
+function updateLlmProxySettingsUi() {
+  const input = $('#llm-proxy-url');
+  const status = $('#llm-proxy-status');
+  const saved = loadProxyUrlOverride();
+  if (input && !input.matches(':focus')) {
+    input.value = saved;
+  }
+  if (status) {
+    status.textContent = saved
+      ? `已保存本机代理：${saved}`
+      : '未配置本机代理（将使用 js/llm-proxy-config.js 中的地址）';
+  }
+}
+
+function bindLlmSparkSettings() {
+  updateLlmSparkSettingsUi();
+
+  $('#btn-save-spark-key')?.addEventListener('click', () => {
+    const pw = $('#llm-spark-password')?.value.trim() ?? '';
+    if (!pw) {
+      alert('请粘贴讯飞 HTTP 接口的 APIPassword');
+      return;
+    }
+    saveSparkPasswordOverride(pw);
+    reloadLlmRuntimeConfig();
+    updateLlmSparkSettingsUi();
+    playButtonConfirm();
+    alert('密钥已保存到本机浏览器。\n' + getLlmModeLabel());
+  });
+
+  $('#btn-clear-spark-key')?.addEventListener('click', () => {
+    clearSparkPasswordOverride();
+    reloadLlmRuntimeConfig();
+    const input = $('#llm-spark-password');
+    if (input) input.value = '';
+    updateLlmSparkSettingsUi();
+  });
+}
+
+function bindLlmProxySettings() {
+  updateLlmProxySettingsUi();
+
+  $('#btn-save-llm-proxy')?.addEventListener('click', () => {
+    const url = $('#llm-proxy-url')?.value.trim() ?? '';
+    if (!url) {
+      alert('请填写 CloudBase 或其它代理的 HTTPS 地址');
+      return;
+    }
+    if (!/^https:\/\/.+/i.test(url)) {
+      alert('代理地址必须以 https:// 开头');
+      return;
+    }
+    saveProxyUrlOverride(url);
+    reloadLlmRuntimeConfig();
+    updateLlmProxySettingsUi();
+    playButtonConfirm();
+    alert(`代理已保存。\n当前链路：${getLlmModeLabel()}`);
+  });
+
+  $('#btn-clear-llm-proxy')?.addEventListener('click', () => {
+    clearProxyUrlOverride();
+    reloadLlmRuntimeConfig();
+    const input = $('#llm-proxy-url');
+    if (input) input.value = '';
+    updateLlmProxySettingsUi();
+  });
+}
+
 function bindEvents() {
   bindStartMenuSfx();
+  bindLlmSparkSettings();
+  bindLlmProxySettings();
 
   $('#btn-start')?.addEventListener('click', () => {
     const existing = loadSave();
@@ -468,6 +561,8 @@ function bindEvents() {
 
   $('#btn-open-settings')?.addEventListener('click', () => {
     applySettings();
+    updateLlmSparkSettingsUi();
+    updateLlmProxySettingsUi();
     showScreen('settings');
   });
 

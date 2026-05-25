@@ -31,12 +31,11 @@ python -m http.server 8080
 
 ## LLM「与新人类对话」
 
-| 环境 | 配置 |
-|------|------|
-| 本地 `localhost` | 复制 `js/llm-config.example.js` → `js/llm-config.js`，填入 API Key（**不上传 GitHub**） |
-| 线上 GitHub Pages | 部署 **Cloudflare Worker** 代理，在 `js/llm-proxy-config.js` 填 Worker 地址（**不含 Key**） |
+使用 **讯飞星火 Spark Lite**（免费、公网 HTTP）。
 
-完整步骤：[docs/LLM代理部署指南.md](docs/LLM代理部署指南.md)
+**推荐：** 游戏 **系统设置** 粘贴 APIPassword → 保存 → 直连，**无需 CloudBase**。
+
+步骤：[docs/LLM配置指南.md](docs/LLM配置指南.md)
 
 ## 技术栈
 

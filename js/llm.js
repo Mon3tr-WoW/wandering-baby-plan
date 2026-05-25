@@ -1,21 +1,28 @@
 /**
- * 新人类 LLM 对话 API
+ * 新人类 LLM — 讯飞星火 Spark Lite（HTTP 直连，免费）
  *
- * - 本地 localhost：直连 API，密钥写在 js/llm-config.js（不上传 GitHub）
- * - 线上 GitHub Pages：经 Cloudflare Worker 代理，密钥只存在 Worker 服务端
+ * 默认：系统设置填写 APIPassword → 浏览器直连星火公网 API，无需 CloudBase。
+ * 可选：填代理 URL（高级，一般不需要）。
  */
 
+import {
+  loadProxyUrlOverride,
+  loadSparkPasswordOverride
+} from './llm-storage.js';
+
+const SPARK_BASE = 'https://spark-api-open.xf-yun.com/v1';
+
 const DEFAULT_LLM_CONFIG = {
-  baseUrl: 'https://models.sjtu.edu.cn/api/v1',
-  apiKey: '',
-  model: 'deepseek-chat',
+  baseUrl: SPARK_BASE,
+  apiPassword: '',
+  model: 'lite',
   maxTokens: 1024,
   temperature: 0.75
 };
 
 const DEFAULT_LLM_PROXY = {
   proxyUrl: '',
-  model: 'deepseek-chat',
+  model: 'lite',
   maxTokens: 1024,
   temperature: 0.75
 };
@@ -26,16 +33,25 @@ let LLM_CONFIG = { ...DEFAULT_LLM_CONFIG };
 let LLM_PROXY = { ...DEFAULT_LLM_PROXY };
 let configLoaded = false;
 
-function isLocalDev() {
-  if (typeof location === 'undefined') return false;
-  const h = location.hostname;
-  return h === 'localhost' || h === '127.0.0.1';
+function getEffectiveProxyUrl() {
+  const override = loadProxyUrlOverride();
+  if (override && !override.includes('你的')) return override;
+  const url = LLM_PROXY.proxyUrl?.trim() ?? '';
+  if (url && !url.includes('你的')) return url;
+  return '';
 }
 
 function useProxyMode() {
-  if (isLocalDev()) return false;
-  const url = LLM_PROXY.proxyUrl?.trim() ?? '';
-  return url.length > 0 && !url.includes('你的-worker');
+  return getEffectiveProxyUrl().length > 0 && !getApiPassword();
+}
+
+function getApiPassword() {
+  const fromStorage = loadSparkPasswordOverride();
+  if (fromStorage) return fromStorage;
+
+  const pw = LLM_CONFIG.apiPassword?.trim() ?? LLM_CONFIG.apiKey?.trim() ?? '';
+  if (!pw || pw.includes('在此填写')) return '';
+  return pw;
 }
 
 async function loadLlmConfig() {
@@ -54,19 +70,37 @@ async function loadLlmConfig() {
     }
   }
 
-  if (isLocalDev()) {
-    for (const path of ['./llm-config.js', './llm-config.example.js']) {
-      try {
-        const mod = await import(path);
-        if (mod?.LLM_CONFIG) {
-          LLM_CONFIG = { ...DEFAULT_LLM_CONFIG, ...mod.LLM_CONFIG };
-          return;
-        }
-      } catch {
-        /* 忽略 */
+  for (const path of ['./llm-spark-public.js', './llm-spark-public.example.js']) {
+    try {
+      const mod = await import(path);
+      const pub = mod?.SPARK_API_PASSWORD?.trim() ?? '';
+      if (pub && !pub.includes('在此填写')) {
+        LLM_CONFIG.apiPassword = pub;
+        break;
       }
+    } catch {
+      /* 忽略 */
     }
   }
+
+  for (const path of ['./llm-config.js', './llm-config.example.js']) {
+    try {
+      const mod = await import(path);
+      if (mod?.LLM_CONFIG) {
+        LLM_CONFIG = { ...DEFAULT_LLM_CONFIG, ...mod.LLM_CONFIG };
+        if (mod.LLM_CONFIG.apiKey && !mod.LLM_CONFIG.apiPassword) {
+          LLM_CONFIG.apiPassword = mod.LLM_CONFIG.apiKey;
+        }
+        break;
+      }
+    } catch {
+      /* 忽略 */
+    }
+  }
+}
+
+export function reloadLlmRuntimeConfig() {
+  configLoaded = false;
 }
 
 /** @type {string} */
@@ -92,15 +126,12 @@ export function resetLlmChat() {
 }
 
 export function isLlmConfigured() {
-  if (useProxyMode()) return true;
-
-  const key = LLM_CONFIG.apiKey?.trim() ?? '';
-  return key.length > 0 && !key.includes('在此填写');
+  return useProxyMode() || !!getApiPassword();
 }
 
 export function getLlmModeLabel() {
-  if (useProxyMode()) return '量子链路 · 代理模式';
-  if (isLlmConfigured()) return '链路就绪 · 本地直连';
+  if (useProxyMode()) return '量子链路 · 星火 Lite（代理）';
+  if (getApiPassword()) return '量子链路 · 星火 Lite（直连）';
   return '未配置';
 }
 
@@ -117,81 +148,102 @@ function buildMessages(userText) {
 }
 
 function notConfiguredError() {
-  if (isLocalDev()) {
-    throw new Error('尚未配置 API Key。请复制 js/llm-config.example.js 为 js/llm-config.js 并填入密钥。');
-  }
   throw new Error(
-    '线上尚未启用 LLM 代理。请部署 Cloudflare Worker 并在 js/llm-proxy-config.js 填入 proxyUrl。详见 docs/LLM代理部署指南.md'
+    '尚未配置星火 APIPassword。请打开「系统设置 → 量子通讯」，粘贴讯飞控制台 HTTP 接口的 APIPassword 并保存。' +
+    '申请免费额度见 docs/LLM配置指南.md'
   );
 }
 
-function parseAssistantReply(data) {
+function parseSparkResponse(data) {
+  if (data?.code !== undefined && data.code !== 0) {
+    throw new Error(`星火 API ${data.code}：${data.message || '请求失败'}`);
+  }
+  if (data?.error?.message) {
+    throw new Error(String(data.error.message));
+  }
   const msg = data?.choices?.[0]?.message;
   return (msg?.content ?? msg?.reasoning_content ?? '').trim();
 }
 
-async function sendViaProxy(userText) {
-  const url = LLM_PROXY.proxyUrl.replace(/\/$/, '');
-  const body = {
-    model: LLM_PROXY.model,
-    messages: buildMessages(userText),
+function buildSparkBody(messages, model, maxTokens, temperature) {
+  return {
+    model,
+    messages,
     stream: false,
-    max_tokens: LLM_PROXY.maxTokens,
-    temperature: LLM_PROXY.temperature
+    max_tokens: maxTokens,
+    temperature
   };
+}
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
+async function sendViaProxy(userText) {
+  const url = getEffectiveProxyUrl().replace(/\/$/, '');
+  const body = buildSparkBody(
+    buildMessages(userText),
+    LLM_PROXY.model,
+    LLM_PROXY.maxTokens,
+    LLM_PROXY.temperature
+  );
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+  } catch {
+    throw new Error('无法连接 LLM 代理（Failed to fetch）。');
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`代理 ${res.status}：${errText.slice(0, 200) || res.statusText}`);
+    throw new Error(`代理 ${res.status}：${errText.slice(0, 240) || res.statusText}`);
   }
 
   const data = await res.json();
-  const reply = parseAssistantReply(data);
-  if (!reply) {
-    throw new Error('模型未返回有效内容。');
-  }
+  const reply = parseSparkResponse(data);
+  if (!reply) throw new Error('星火模型未返回有效内容。');
   return reply;
 }
 
 async function sendDirect(userText) {
-  const url = `${LLM_CONFIG.baseUrl.replace(/\/$/, '')}/chat/completions`;
-  const body = {
-    model: LLM_CONFIG.model,
-    messages: buildMessages(userText),
-    stream: false,
-    max_tokens: LLM_CONFIG.maxTokens,
-    temperature: LLM_CONFIG.temperature
-  };
+  const password = getApiPassword();
+  const url = `${(LLM_CONFIG.baseUrl || SPARK_BASE).replace(/\/$/, '')}/chat/completions`;
+  const body = buildSparkBody(
+    buildMessages(userText),
+    LLM_CONFIG.model,
+    LLM_CONFIG.maxTokens,
+    LLM_CONFIG.temperature
+  );
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${LLM_CONFIG.apiKey.trim()}`
-    },
-    body: JSON.stringify(body)
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${password}`
+      },
+      body: JSON.stringify(body)
+    });
+  } catch {
+    throw new Error(
+      '无法连接星火 API。若浏览器报 CORS 错误，可改用代理（见 docs/LLM配置指南.md 高级选项）。'
+    );
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`API ${res.status}：${errText.slice(0, 200) || res.statusText}`);
+    throw new Error(`星火 API ${res.status}：${errText.slice(0, 240) || res.statusText}`);
   }
 
   const data = await res.json();
-  const reply = parseAssistantReply(data);
-  if (!reply) {
-    throw new Error('模型未返回有效内容。');
-  }
+  const reply = parseSparkResponse(data);
+  if (!reply) throw new Error('星火模型未返回有效内容。');
   return reply;
 }
 

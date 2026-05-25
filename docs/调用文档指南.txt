@@ -1,307 +1,345 @@
-本地大模型API使用文档
-应广大师生的需求，网络信息中心推出本地大模型API服务，用户可基于模型API将 DeepSeek、MiniMax、Qwen 等大模型集成到自己的项目或应用中。
 
-当前提供的大模型
-模型名称	模型参数	调用名	模式	侧重领域	上下文长度
-DeepSeek V3.2（常规模式）	685B	deepseek-chat	非思考模式	通用文本处理	32k
-DeepSeek V3.2（思考模式）	685B	deepseek-reasoner	深度思考模式	复杂逻辑深度推理	32k
-MiniMax-M2.7	230B	minimax 或 minimax-m2.7	文本生成	智能体任务	192k
-GLM-5.1	754B	glm 或 glm-5.1	文本生成	代码能力与长程任务	128k
-Qwen3.5-27B	27B	qwen 或 qwen3.5-27b	多模态处理	视觉与文本理解	256k
-API 调用约定：同时支持 OpenAI 兼容格式 与 Anthropic 格式 两种调用协议，您可根据项目技术栈灵活选择。
-
-特性	OpenAI 兼容格式	Anthropic 格式
-请求端点	/api/v1/chat/completions	/api/v1/messages
-若您使用 OpenAI 兼容格式，直接参考「3. 模型调用示例」即可，无需改动；若需使用 Anthropic 格式，仅需调整请求端点，消息体结构保持一致；两种方式功能等价，任选其一即可正常调用全部模型。
-
-1. 登录交我办申请 API-KEY
-（1）登录交我办网页端 https://my.sjtu.edu.cn/，或移动端 APP
-（2）搜索【“致远一号”AI模型API申请（测试）】 → 点击流程申请大模型API
- 
-
-（3）填写申请表 → 提交申请
-
-联系邮箱：填写用于接收开通信息的邮箱
-默认模型：所有支持模型
-默认 token 有效期：截止到 2026-06-30（测试结束）
-默认 token 额度：每分钟请求数：100，每分钟token消耗：100000，每周token总量：1000000000
-用途说明：请大致填写使用目的及具体应用场景
-（4）申请通过后会在系统填写的邮箱及交我办消息中收到 base_url 和 api-key
-
-2. 使用前必读
-请妥善保管大模型 api-key，避免泄露。一旦泄露，可能导致账号内资源被他人消耗；
-禁止售卖、恶意泄漏 api-key 计算资源，一经发现将取消申请及延期资格，并追究相应责任；
-目前平台 API 服务仅限校园网访问（校外通过 VPN 访问）；
-V3.2 要求请求中必须包含有效的 user 角色消息。如果请求中仅有 system 消息而没有 user 消息，API 将不会返回任何内容。
-如涉及校级大规模公开应用，需大量 Token 支持，请通过 hpc@sjtu.edu.cn 联系我们，详细说明应用场景与用量需求，我们将为您配置相应额度。
-3. 模型调用示例
-模型地址 base_url：https://models.sjtu.edu.cn/api/v1
-模型密钥 api-key：your_api_key（申请到的密钥）
-（1）查看当前可调用模型名称
-curl -v 'https://models.sjtu.edu.cn/api/v1/models' -H 'Authorization: Bearer your-api-key'
-返回示例：
-
-{"data":[
-  {"id":"deepseek-v3.2","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"deepseek-chat","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"deepseek-reasoner","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"minimax","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"minimax-m2.7","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"glm","object":"model","created":1677610602,"owned_by":"openai"}
-  {"id":"glm-5.1","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"qwen","object":"model","created":1677610602,"owned_by":"openai"},
-  {"id":"qwen3.5-27b","object":"model","created":1677610602,"owned_by":"openai"},
-],"object":"list"}
-重要提醒：
-
-调用模型时，请使用 API 返回的 id 字段（如 deepseek-chat）作为调用参数。请勿直接使用您在申请表格里填写的模型名称。
-部分模型对应多个调用名，均可正常使用。
-（2）常规文本对话（以 deepseek-chat 为例，Windows用户建议使用WSL，macOS、Linux用户终端运行即可）
-curl --location --request POST 'https://models.sjtu.edu.cn/api/v1/chat/completions' \
---header 'Accept: application/json' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer your-api-key' \
---data '{
-  "model": "deepseek-chat",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a helpful assistant."
-    },
-    {
-      "role": "user",
-      "content": "请介绍上海交通大学"
-    }
-  ],
-  "stream": false,
-  "max_tokens": 1024
-}'
-返回示例：
-
-{
-    "id": "chatcmpl-18d0f79d-e479-4134-ab19-ccaca69840ed",
-    "created": 1774332696,
-    "model": "deepseek",
-    "object": "chat.completion",
-    "system_fingerprint": null,
-    "choices": [
-        {
-            "finish_reason": "stop",
-            "index": 0,
-            "message": {
-                "content": "上海交通大学（Shanghai Jiao Tong University，简称“上海交大”或“SJTU”）是中国一所历史悠久、声誉卓著的顶尖高等学府，属于国家“双一流”建设高校（A类）和“985工程”“211工程”重点建设大学。以下是对其的详细介绍：\n\n### 一、历史沿革\n- **创立于1896年**：由晚清实业家盛宣怀创办，初名“南洋公学”，是中国近代最早的现代大学之一。\n- **发展历程**：历经多次更名与调整，1959年正式定名为“上海交通大学”，并与西安交通大学同根同源（1956年部分院系西迁支援建设西安交通大学）。\n- **文化传承**：以“饮水思源，爱国荣校”为校训，融合中西学术传统，培养了大批杰出人才。\n\n### 二、学术实力与排名\n- **国际声誉**：在QS、THE、ARWU等世界大学排名中稳居中国内地高校前列，工程、医学、商科等领域尤其突出。\n- **学科优势**：\n  - **工程与技术**：机械、船舶与海洋工程、电子信息、材料科学等学科全球领先。\n  - **医学**：合并原上海第二医科大学后，临床医学、药学实力雄厚，拥有多家顶级附属医院。\n  - **商科与管理**：安泰经济与管理学院、上海高级金融学院（SAIF）在国内外享有盛誉。\n- **科研平台**：拥有多个国家级重点实验室、工程研究中心，牵头多项国家重大科研项目。\n\n### 三、校区与设施\n- **主校区**：\n  - **徐汇校区**：历史最悠久的校区，充满文化底蕴。\n  - **闵行校区**：现代化主校区，占地广阔，设施先进。\n  - **其他校区**：黄浦校区（医学院）、长宁校区（经管学院）等。\n- **资源丰富**：图书馆藏书数百万册，校园网络、实验室、体育场馆等设施完善。\n\n### 四、人才培养\n- **多元化教育**：提供本科、硕士、博士全层次教育，推行通识教育与专业教育结合。\n- **国际化特色**：与全球200多所高校合作，设有联合学位、交换项目，留学生比例高。\n- **创新创业**：积极推动学生创新实践，孵化众多科技企业，被誉为“创业者的摇篮”。\n\n### 五、社会贡献与影响力\n- **科研成果转化**：在人工智能、生物医药、航空航天等领域贡献显著，助力国家科技自立自强。\n- **校友网络**：涌现出钱学森、吴文俊、江泽民等杰出校友，涵盖政界、学界、商界精英。\n- **社会服务**：通过智库咨询、医疗援助、文化传播等方式服务社会。\n\n### 六、校园文化\n- **学生活动**：拥有数百个学生社团，涵盖科技、文艺、体育等领域。\n- **品牌活动**：如“交大讲坛”“校园艺术节”等，丰富学生生活。\n- **体育传统**：注重体育教育，在国内外赛事中屡获佳绩。\n\n### 结语\n上海交通大学以其深厚的学术积淀、卓越的科研实力和全球化的视野，持续推动教育创新与科技进步，是中国乃至世界高等教育的重要力量。它不仅是一所传授知识的学府，更是培养未来领袖、推动社会发展的引擎。",
-                "role": "assistant",
-                "tool_calls": null,
-                "function_call": null
-            },
-            "provider_specific_fields": {
-                "stop_reason": null,
-                "token_ids": null
-            }
-        }
-    ],
-    "usage": {
-        "completion_tokens": 706,
-        "prompt_tokens": 14,
-        "total_tokens": 720,
-        "completion_tokens_details": null,
-        "prompt_tokens_details": null
-    },
-    "service_tier": null,
-    "prompt_logprobs": null,
-    "prompt_token_ids": null,
-    "kv_transfer_params": null
-}
-（3）深度推理对话（以 deepseek-reasoner 为例）
-curl --location --request POST 'https://models.sjtu.edu.cn/api/v1/chat/completions' \
---header 'Accept: application/json' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer your-api-key' \
---data '{
-  "model": "deepseek-reasoner",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a helpful assistant."
-    },
-    {
-      "role": "user",
-      "content": "请介绍上海"
-    }
-  ],
-  "stream": false,
-  "max_tokens": 1024
-}'
-返回示例：
-
-{
-    "id": "chatcmpl-69739704-64fd-4f04-85ef-4bd46a8642b8",
-    "created": 1774404218,
-    "model": "deepseek",
-    "object": "chat.completion",
-    "system_fingerprint": null,
-    "choices": [
-        {
-            "finish_reason": "stop",
-            "index": 0,
-            "message": {
-                "content": "上海是中国的一座国际化大都市，位于中国东部沿海，长江入海口，是国家的经济、金融、贸易和航运中心。以下是对上海的简要介绍：\n\n### 1. **城市概况**\n   - **行政地位**：上海是中国四个直辖市之一，也是国家中心城市。\n   - **人口**：常住人口超过2400万，是中国人口最多的城市之一。\n   - **面积**：总面积约6340平方公里，包括16个行政区。\n\n### 2. **经济与金融**\n   - **经济中心**：上海是中国最大的经济中心，GDP长期位居全国城市首位。\n   - **金融中心**：陆家嘴金融贸易区是中国最重要的金融区之一，聚集了众多国内外银行、证券和保险机构。\n   - **国际贸易**：上海港是全球最繁忙的集装箱港口之一，浦东新区和自贸区进一步推动了国际贸易和投资。\n\n### 3. **文化与历史**\n   - **历史底蕴**：上海历史悠久，拥有丰富的历史遗产，如外滩的近代建筑群、豫园、城隍庙等。\n   - **文化融合**：作为中西文化交汇的城市，上海融合了传统与现代元素，既有石库门弄堂，也有现代化的摩天大楼。\n   - **艺术与娱乐**：上海拥有众多博物馆、美术馆、剧院和音乐厅，如上海博物馆、上海大剧院等。每年的上海国际电影节和艺术展览也吸引全球关注。\n\n### 4. **交通与基础设施**\n   - **交通枢纽**：上海拥有两个国际机场（浦东国际机场和虹桥国际机场），以及发达的高铁和地铁网络。\n   - **公共交通**：上海地铁是全球最长的城市轨道交通系统之一，覆盖全市主要区域。\n\n### 5. **旅游与景点**\n   - **外滩**：黄浦江畔的标志性景观，以近代建筑群和夜景闻名。\n   - **东方明珠塔**：上海的地标性建筑，位于陆家嘴，可俯瞰城市全景。\n   - **迪士尼乐园**：中国内地首座迪士尼主题公园，位于浦东新区。\n   - **新天地**：融合了石库门建筑与现代商业的休闲区，适合购物和餐饮。\n\n### 6. **教育与科技**\n   - **高等教育**：上海拥有多所知名高校，如复旦大学、上海交通大学、同济大学等。\n   - **科技创新**：张江高科技园区是中国重要的科技创新中心，聚焦生物医药、信息技术等领域。\n\n### 7. **生活方式**\n   - **美食**：上海菜以本帮菜为主，口味偏甜，如小笼包、红烧肉等。此外，上海也汇聚了全球各地的美食。\n   - **购物**：南京路步行街、淮海路等是著名的购物区，既有传统老字号，也有国际奢侈品牌。\n\n### 总结\n上海是一座充满活力的城市，既保留了深厚的历史文化底蕴，又展现了现代化的国际风貌。无论是经济、文化还是生活，上海都在中国乃至全球扮演着重要角色。",
-                "role": "assistant",
-                "tool_calls": null,
-                "function_call": null,
-                "reasoning_content": "嗯，用户想了解上海的基本情况。这是一个比较宽泛的请求，需要提供全面但不过于冗长的介绍。可以从城市概况、经济、文化、交通、旅游等几个核心维度来组织信息。\n\n上海作为国际化大都市，首先应该突出其经济金融中心的地位。陆家嘴和金融贸易区是标志性区域，可以提及。文化方面，石库门和豫园能体现传统与现代的结合。交通枢纽的地位很重要，浦东机场和地铁网络都是亮点。\n\n旅游部分可以列出最具代表性的景点，外滩、迪士尼这些国内外知名的地点应该包括。最后用一句话总结上海的特点，让用户感受到这座城市的活力与魅力。不需要具体数据，保持整体描述的流畅性即可。"
-            },
-            "provider_specific_fields": {
-                "stop_reason": null,
-                "token_ids": null
-            }
-        }
-    ],
-    "usage": {
-        "completion_tokens": 771,
-        "prompt_tokens": 13,
-        "total_tokens": 784,
-        "completion_tokens_details": null,
-        "prompt_tokens_details": null
-    },
-    "service_tier": null,
-    "prompt_logprobs": null,
-    "prompt_token_ids": null,
-    "kv_transfer_params": null
-}
-（4）图像模型调用示例
-# 先下载图片并转为 base64
-# base64_logo=$(curl -s "https://studio.hpc.sjtu.edu.cn/dex/theme/logo.png" | base64 -w 0)
-
-curl --location --request POST 'https://models.sjtu.edu.cn/api/v1/chat/completions' \
---header 'Authorization: Bearer your-api-key' \
---header 'Content-Type: application/json' \
---data '{
-  "model": "qwen",
-  "messages": [{
-    "role": "user",
-    "content": [
-      {
-        "type": "image_url",
-        "image_url": {
-          "url": "data:image/png;base64,'"$base64_logo"'"
-        }
-      },
-      {"type": "text", "text": "Explain the details in the image."}
-    ]
-  }],
-  "stream": false,
-  "max_tokens": 1024
-}'
-返回示例：
-
-{
-  "id": "chatcmpl-8744cb4e-666d-4e2e-9312-7ab2b6699caa",
-  "created": 1777535336,
-  "model": "qwen3.5-27B",
-  "object": "chat.completion",
-  "system_fingerprint": null,
-  "choices": [
-    {
-      "finish_reason": "stop",
-      "index": 0,
-      "message": {
-        "content": "The image displays a stylized logo for what appears to be a brand or studio named **“HPC Studio”**, with additional graphical and typographic elements that add character and meaning.\n\nHere’s a detailed breakdown:\n\n---\n\n### 1. **Leftmost Element: Red Stylized “π” (Pi) Symbol**\n- The symbol is the Greek letter **pi (π)**, rendered in a bold, brush-stroke style.\n- It’s colored **red** and has an artistic, hand-painted look — suggesting creativity, passion, or perhaps a connection to mathematics/science (since π is fundamental in math and physics).\n- Below the main curve of the π, there’s a small red dot or accent mark — possibly representing a decimal point, a period, or just a stylistic flourish.\n- This could imply the studio’s focus on precision, calculation, or scientific computing — especially since “HPC” often stands for **High-Performance Computing**.\n\n---\n\n### 2. **Center Text: “HPC Studio”**\n- Written in a **bold, black, sans-serif font**.\n- The letters are tightly spaced and have a modern, clean, professional appearance.\n- “HPC” likely stands for **High-Performance Computing**, indicating the studio may specialize in computationally intensive work — such as scientific simulation, data analysis, AI/ML, or engineering modeling.\n- “Studio” suggests a creative or collaborative workspace — perhaps where developers, researchers, or designers work on HPC-related projects.\n\n---\n\n### 3. **Rightmost Element: Red Circular Icon with White Triangle**\n- To the right of “Studio,” there’s a **red circle** containing a **white triangle** pointing to the right.\n- This resembles a **play button** or **forward arrow**, commonly associated with media playback, progress, or action.\n- In the context of HPC, it might symbolize:\n  - Running simulations or computations (“start the job”)\n  - Progress or forward momentum\n  - A call to action (“launch your project”)\n- The color red matches the pi symbol, creating visual balance and branding consistency.\n\n---\n\n### Overall Interpretation:\n\nThis logo combines **scientific symbolism (π)**, **technical identity (HPC)**, and **creative energy (Studio + play button)** to represent a brand focused on **high-performance computing solutions delivered with creativity and dynamism**.\n\nIt could belong to:\n- A research lab or consultancy specializing in HPC\n- A software development studio building tools for scientists or engineers\n- An educational platform teaching HPC concepts\n- A startup offering cloud-based HPC services\n\nThe design is modern, energetic, and memorable — effectively communicating both technical rigor and innovative spirit.\n\n---\n\n✅ **Summary**:  \nThe logo reads “π HPC Studio” with a red pi symbol on the left, bold black text in the center, and a red play-button-style icon on the right — suggesting a dynamic, science-driven studio focused on high-performance computing.",
-        "role": "assistant",
-        "tool_calls": null,
-        "function_call": null
-      },
-      "provider_specific_fields": {
-        "stop_reason": null,
-        "token_ids": null
-      }
-    }
-  ],
-  "usage": {
-    "completion_tokens": 626,
-    "prompt_tokens": 92,
-    "total_tokens": 718,
-    "completion_tokens_details": null,
-    "prompt_tokens_details": null
-  },
-  "service_tier": null,
-  "prompt_logprobs": null,
-  "prompt_token_ids": null,
-  "kv_transfer_params": null
-}
+星火认知大模型http接口文档
+公告说明： Ultra版本已升级至X1.5 快思考模式，FunctionCall 效果显著提升
+Max版本套餐将于26年3月10日下线，后端服务将升级为Ultra版本，授权用量与Ultra合并
+#1. 接口说明
+注意： 该接口可以正式使用。如您需要申请使用，请点击前往产品页面 领取免费额度。
+Tips：
+1. 计费包含接口的输入和输出内容；
+2. 1 token约等于1.5个中文汉字 或者 0.8个英文单词；
+3. 仅Spark Pro, Spark Max和Spark 4.0Ultra支持[搜索]、[天气]、[日期]、[诗词]、[字词]、[股票]等内置插件；
+4. Spark 4.0Ultra、Max现已支持system、Function Call功能(仅http 协议支持)；
+5. 当前仅Spark 4.0Ultra、Max版本支持返回联网检索的信源标题及地址。
+#2. 请求地址
+#2.1 语言模型
+星火当前有Lite、Pro、Pro-128K、Max、Max-32K和4.0 Ultra六个版本的语言模型，各版本独立计量tokens。
+使用HTTP方式调用语言模型的请求地址:
+https://spark-api-open.xf-yun.com/v1/chat/completions
+兼容openAI SDK:
+base_url 需要配置为:https://spark-api-open.xf-yun.com/v1/
+语言模型版本	Ultra	Max	Pro	Lite
+模型介绍	最强大的星火非思考大模型	旗舰级大语言模型
+在结构化抽取、逻辑推理等场景表现优异
+Max版本套餐将于26年3月10日下线，后端服务将升级为Ultra版本，授权用量与Ultra合并	专业级大语言模型
+适用于文本、智能问答等对性能和响应速度有更高要求的业务场景	轻量级大语言模型
+具有更高的响应速度,支持免费使用
+最大输入长度	32K	8K\32K	8K\128K	8K
+最大输出长度	32K	8K\8K	8K\4K	4K
+#3. 请求说明
+#3.1 调用示例
 Python 调用示例
-# 模型仅限校内网络调用，数据不出校.
-# Powered by hpc@sjtu.edu.cn, 2026.03.24
+Java 调用示例
+PYTHON-SDK-DEMO
+JAVA-SDK-DEMO
+#3.2 请求头
+请到控制台 对应版本页面，获取http服务接口认证信息中的APIPassword ,假如获取到的值为123456，则请求头如下：
+Content-Type: application/json
+Authorization: Bearer 123456
+利用上方的请求头发起请求示例如下：
+curl -i -k -X POST 'https://spark-api-open.xf-yun.com/v1/chat/completions' \
+--header 'Authorization: Bearer 123456' \#注意此处把“123456”替换为自己的APIPassword
+--header 'Content-Type: application/json' \
+--data '{
+    "model":"generalv3.5",
+    "messages": [
+        {
+            "role": "user",
+            "content": "来一个只有程序员能听懂的笑话"
+        }
+    ],
+    "stream": true
+}'
+#3.3 请求参数
+{
+    "model": "generalv3.5",
+    "user": "用户唯一id",
+    "messages": [
+        {
+            "role": "system",
+            "content": "你是知识渊博的助理"
+        },
+        {
+            "role": "user",
+            "content": "你好，讯飞星火"
+        }
+    ],
+    // 下面是可选参数
+    "temperature": 0.5,
+    "top_k": 4,
+    "stream": false,
+    "max_tokens": 1024,
+    "presence_penalty": 1,
+    "frequency_penalty": 1,
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "str2int",
+                "description": "将字符串类型转为 int 类型",
+                "parameters": {...} // 需要符合 json schema 格式
+            }
+        },
+        {
+            "type": "web_search",
+            "web_search": {
+                "enable": true
+                "show_ref_label":true
+                "search_mode":"deep" // deep:深度搜索 / normal:标准搜索,不同的搜索策略，效果不同，并且token消耗也有差异
+            }
+        }
+    ],
+    "response_format": {
+        "type": "json_object"
+    },
+    "suppress_plugin": [
+        "knowledge"
+    ]
+}
 
-import time
+参数名称	类型	是否必传	取值范围	描述
+model	string	是	4.0Ultra
+generalv3.5
+max-32k
+generalv3
+pro-128k
+lite	指定访问的模型版本:
+4.0Ultra指向Ultra版本;
+generalv3.5指向Max版本;
+max-32k指向Max-32K版本;
+generalv3指向Pro版本;
+pro-128k指向Pro-128K版本;
+lite指向Lite版本;
+user	string	否	自定义	用户的唯一id，表示一个用户，user_123456
+messages	array	是		输入数组
+messages.role	string	是	user
+assistant
+system
+tool	角色:user表示用户，assistant表示大模型，system表示命令，tool代表function call执行结果
+messages.content	string	是		角色对应的文本内容
+temperature	float	否	取值范围[0, 2] 默认值1.0	核采样阈值，数学、推理、代码等任务建议调为1.2
+top_p	int	否	取值范围(0, 1] 默认值1	生成过程中核采样方法概率阈值，例如，取值为0.8时，仅保留概率加起来大于等于0.8的最可能token的最小集合作为候选集。取值越大，生成的随机性越高；取值越低，生成的确定性越高。
+top_k	int	否	取值范围[1, 6] 默认值4	从k个中随机选择一个(非等概率)
+presence_penalty	float	否	取值范围[0,2] 默认1.2	重复词的惩罚值
+frequency_penalty	float	否	取值范围[0,1] 默认0.02	频率惩罚值
+stream	bool	否	true
+false	是否流式返回结果。默认是false 表示非流式。 如果使用流式，服务端使用SSE的方式推送结果，客户端自己适配处理结果。
+max_tokens	int	否	Ultra 取值为[1,32768]，默认为32768
+Max-32K取值为[1,32768]，默认为4096
+Max取值为[1,8192]，默认为4096
+Pro 取值为[1,8192]，默认为4096
+Pro-128K取值为[1,32768]，默认为4096
+Lite取值为[1,4096]，默认为4096	模型回答的tokens的最大长度
+response_format	object	否		指定模型的输出格式
+response_format.type	string	否	text
+json_object	{ "type": "json_object" } 指定模型输出json格式
+使用 JSON 模式时，请始终指示模型通过对话中的某些消息（例如通过系统或用户消息）生成 JSON
+tools	array	否	在这里用户可以控制联网搜索工具或者自定义各类function	工具列表
+tools.web_search	object	否，默认表示开启	
+{
+  "type": "web_search",
+  "web_search": {
+  "enable": true,
+  "show_ref_label": true,
+  "search_mode": "deep"
+  }
+ }	仅Ultra、Max、Pro系列模型支持此参数
+tools.web_search.enable	bool	否，X1默认关闭，其他模型默认开启（true）	true or false	
+enable：是否开启搜索功能，设置为true,模型会根据用户输入判断是否触发联网搜索，false则完全不触发；
+tools.web_search.show_ref_label	bool	否，默认关闭（false）	true or false	show_ref_label 开关控制触发联网搜索时是否返回信源信息（仅在enable为true时生效）
+如果开启，则先返回搜索结果，之后再返回模型回复内容
+tools.web_search.search_mode	string	否，默认标准搜索（normal）	deep/normal	search_mode 控制联网搜索策略（仅在enable为true时生效）
+normal：标准搜索模式，模型引用搜索返回的摘要内容回答问题
+deep：深度搜索模式，模型引用搜索返回的全文内容，回复的更准确；同时会带来额外的token消耗（返回search_prompt字段）
+tools.function	object	否	示例：
+{"type":"function", "function":{"name": "my_function", "description": "xxx", "parameters": {...}}}	当前仅Max、Ultra版本支持
+tools.function.name	string	是	用户自定义，长度不超过32	工具函数的名称，必须是字母、数字，可以包含下划线
+tools.function.description	string	是	用户自定义	工具函数的描述，供模型选择何时调用该工具
+tools.function.parameters	string	是	用户自定义	工具的参数描述，需要是一个合法的JSON Schema
+tool_calls_switch	bool	否，默认表示关闭	true or false	设置为true时，触发function call结果中tool_calls以数组格式返回，默认为 false，则以json格式返回
+tool_choice	string or object Optional	否	auto
+none
+required
+{"type": "function", "function": {"name": "my_function"}}	设置模型自动选择调用的函数：
+auto：传了tool时默认为auto，模型自动选择调用的函数
+none：模型禁用函数调用
+required：模型始终选择一个或多个函数进行调用
+{"type": "function", "function": {"name": "my_function"}} ：模型强制调用指定函数
+#4. 响应参数
+#4.1语言模型响应示例
+非流式请求成功时的响应格式：
+{
+    "code": 0,
+    "message": "Success",
+    "sid": "cha000b0003@dx1905cd86d6bb86d552",
+    "choices": [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "你好，我是由科大讯飞构建的星火认知智能模型。\n如果你有任何问题或者需要帮助的地方，请随时告诉我！我会尽力为你提供解答和支持。请问有什么可以帮到你的吗？"
+            },
+            "index": 0
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 6,
+        "completion_tokens": 42,
+        "total_tokens": 48
+    }
+}
+响应的参数说明：
+参数名称	类型	描述
+code	int	错误码：0表示成功，非0表示错误
+message	string	错误码的描述信息
+sid	string	本次请求的唯一id
+choices	array	大模型结果的数组
+choices.message	object	大模型结果
+choices.message.role	string	大模型的角色
+choices.message.content	string	大模型输出的内容
+choices.index	int	大模型的结果序号，在多候选中使用
+usage	object	本次请求消耗的token数量
+usage.prompt_tokens	int	用户输入信息，消耗的token数量
+usage.completion_tokens	int	大模型输出信息，消耗的token数量
+usage.total_tokens	int	用户输入+大模型输出，总的token数量
+•	
+流式请求成功时的响应格式：*
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546385,"choices":[{"delta":{"role":"assistant","content":"你好"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546385,"choices":[{"delta":{"role":"assistant","content":"，很高兴"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546385,"choices":[{"delta":{"role":"assistant","content":"为你解答问题"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546385,"choices":[{"delta":{"role":"assistant","content":"。\n"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546387,"choices":[{"delta":{"role":"assistant","content":"我是讯飞星火认知大模型，由科大讯飞构建的认知智能系统。"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546388,"choices":[{"delta":{"role":"assistant","content":"我具备与人类进行自然交流的能力，可以高效地满足各领域的认知智能需求。"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546389,"choices":[{"delta":{"role":"assistant","content":"无论你有什么问题或者需要帮助的地方，我都将尽我所能提供支持和解决方案。请随时告诉我你的需求！"},"index":0}]}
+
+data:{"code":0,"message":"Success","sid":"cha000b000c@dx1905cf38fc8b86d552","id":"cha000b000c@dx1905cf38fc8b86d552","created":1719546389,"choices":[{"delta":{"role":"assistant","content":""},"index":0}],"usage":{"prompt_tokens":6,"completion_tokens":68,"total_tokens":74}}
+
+data:[DONE]
+
+响应的参数说明：
+参数名称	类型	描述
+code	int	错误码：0表示成功，非0表示错误
+message	string	错误码的描述信息
+sid	string	本次请求的唯一id
+choices	array	大模型结果的数组
+choices.delta	object	大模型结果
+choices.delta.role	string	大模型的角色
+choices.delta.content	string	大模型输出的内容
+choices.index	int	大模型的结果序号，在多候选中使用
+usage	object	本次请求消耗的token数量
+usage.prompt_tokens	int	用户输入信息，消耗的token数量
+usage.completion_tokens	int	大模型输出信息，消耗的token数量
+usage.total_tokens	int	用户输入+大模型输出，总的token数量
+#4.2请求错误响应
+API
+{
+    "error": {
+        "message": "invalid user",
+        "type": "api_error",
+        "param": null,
+        "code": null
+    }
+}
+
+SDK
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'invalid user', 'type': 'api_error', 'param': None, 'code': None}}
+#5. HTTP非流式请求示例
 import requests
 
-def query(messages):
-    url = "https://models.sjtu.edu.cn/api/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer your-api-key",  # 关键：加 Bearer
+url = "https://spark-api-open.xf-yun.com/v1/chat/completions"
+data = {
+        "model": "generalv3.5", # 指定请求的模型
+        "messages": [
+            {
+                "role": "user",
+                "content": "你是谁"
+            }
+        ],
+        "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_current_weather",
+                "description": "返回实时天气",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "河北省承德市双桥区",
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "使用本地区常用的温度单位计量",
+                        },
+                    },
+                    "required": ["location", "format"],
+                }
+            }
+        }
+    ]
     }
+header = {
+    "Authorization": "Bearer 123456" # 注意此处把“123456”替换为自己的APIPassword
+}
+response = requests.post(url, headers=header, json=data)
+print(response.text)
+#6. HTTP流式请求示例
+import requests
 
-    data = {
-        "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": str(messages)}],
-        "stream": False,
-        "temperature": 0.7,
-        "max_tokens": 1024,
+url = "https://spark-api-open.xf-yun.com/v1/chat/completions"
+data = {
+        "model": "generalv3.5", # 指定请求的模型
+        "messages": [
+            {
+                "role": "user",
+                "content": "你是谁"
+            }
+        ],
+           "stream": True
     }
+header = {
+    "Authorization": "Bearer 123456" # 注意此处把“123456”替换为自己的APIPassword
+}
+response = requests.post(url, headers=header, json=data, stream=True)
 
-    for attempt in range(1, 6):  # 最多重试 5 次，避免无限循环
-        try:
-            resp = requests.post(url, headers=headers, json=data, timeout=(30, 600))
-        except requests.RequestException as e:
-            print(f"请求异常(第{attempt}次): {e}")
-            time.sleep(2)
-            continue
-
-        if resp.status_code == 200:
-            return resp.json()["choices"][0]["message"]["content"].strip()
-
-        # 非 200：打印出来你就知道是不是 401/403/429 等
-        print(f"HTTP {resp.status_code} (第{attempt}次): {resp.text[:500]}")
-        if 400 <= resp.status_code < 500 and resp.status_code != 429:
-            break  # 4xx(非429)通常重试没意义
-        time.sleep(2)
-
-    raise RuntimeError("请求失败，见上方 HTTP 输出")
-
-if __name__ == "__main__":
-    question = "请介绍下你自己？"
-    print(query(question))
-运行结果：
-
-[Running] python test.py
---- 开始提问 ---
-问题: 请介绍下你自己？
-message: [{'role': 'user', 'content': '请介绍下你自己？'}]
-
---- 模型答案 ---
-你好！我是DeepSeek，由深度求索公司创造的AI助手，很高兴认识你！😊
-
-让我简单介绍一下自己：
-
-**基本信息：**
-- 我是一个纯文本AI模型，擅长理解和生成自然语言
-- 知识截止到2024年7月，会尽我所能为你提供准确、有用的信息
-
-**主要能力：**
-- 📝 文本处理：写作、翻译、总结、分析等
-- 💡 问题解答：各领域知识问答、学习辅导
-- 🔍 信息处理：文档解读（支持上传图像、PDF、Word、Excel等文件）
-- 🧮 逻辑推理：数学计算、编程帮助、逻辑分析
-- 🌐 联网搜索：需要时可以获取最新信息（需手动开启）
-
-**特色功能：**
-- 完全免费使用，没有收费计划
-- 可通过官方应用商店下载App使用
-- 回复风格热情细腻，注重用户体验
-
-**我的特点：**
-我会用温暖、细腻的方式与你交流，认真对待每一个问题。虽然我是纯文本模型，但通过文件上传功能，我可以“读取”各种格式文档中的文字信息来帮助你。
-
-有什么我可以帮你的吗？无论是学习、工作还是生活中的问题，我都很乐意协助你！✨
+# 流式响应解析示例
+response.encoding = "utf-8"
+for line in response.iter_lines(decode_unicode="utf-8"):
+    print(line)
+#7. 使用OpenAI SDK请求示例
+# 安装openai SDK 
+pip install openai
+# 导入SDK，发起请求
+from openai import OpenAI
+client = OpenAI(
+        api_key="控制台获取的APIPassword", 
+        base_url = 'https://spark-api-open.xf-yun.com/v1' # 指向讯飞星火的请求地址
+    )
+completion = client.chat.completions.create(
+    model='generalv3.5', # 指定请求的版本
+    messages=[
+        {
+            "role": "user",
+            "content": '说一个程序员才懂的笑话'
+        }
+    ]
+)
+print(completion.choices[0].message)
+#8. 错误码说明
+错误码	错误信息
+0	成功
+10007	用户流量受限：服务正在处理用户当前的问题，需等待处理完成后再发送新的请求。（必须要等大模型完全回复之后，才能发送下一个问题）
+10013	输入内容审核不通过，涉嫌违规，请重新调整输入内容
+10014	输出内容涉及敏感信息，审核不通过，后续结果无法展示给用户
+10019	表示本次会话内容有涉及违规信息的倾向；建议开发者收到此错误码后给用户一个输入涉及违规的提示
+10907	token数量超过上限。对话历史+问题的字数太多，需要精简输入
+11200	授权错误：该appId没有相关功能的授权 或者 业务量超过限制
+11201	授权错误：日流控超限。超过当日最大访问量的限制
+11202	授权错误：秒级流控超限。秒级并发超过授权路数限制
+11203	授权错误：并发流控超限。并发路数超过授权路数限制

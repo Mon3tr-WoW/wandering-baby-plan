@@ -992,6 +992,76 @@ button:hover {
   justify-content: flex-start;
 }
 
+.settings-block {
+  margin: 1.25rem 0 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+.settings-subtitle {
+  font-family: var(--font-sci);
+  font-size: 0.95rem;
+  color: var(--aurora);
+  margin-bottom: 0.5rem;
+}
+
+.settings-hint {
+  margin-bottom: 0.75rem !important;
+  line-height: 1.5;
+}
+
+.setting-row-col {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.llm-proxy-input {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+}
+
+.llm-proxy-input:focus {
+  outline: none;
+  border-color: var(--aurora);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.settings-btn-row {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.llm-proxy-status {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.settings-advanced {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(0, 240, 255, 0.2);
+}
+
+.settings-advanced summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-advanced[open] summary {
+  color: var(--aurora);
+}
+
 .ending-list {
   list-style: none;
   margin-bottom: 1.5rem;

@@ -113,7 +113,7 @@ export function openLlmChat() {
   if (!inited) {
     appendBubble('system', isLlmConfigured()
       ? getLlmModeLabel()
-      : '⚠ 尚未配置：本地编辑 js/llm-config.js；线上见 docs/LLM代理部署指南.md');
+      : '⚠ 请打开系统设置，粘贴星火 APIPassword 并保存。见 docs/LLM配置指南.md');
     appendBubble('assistant', OPEN_GREETING);
     inited = true;
   }

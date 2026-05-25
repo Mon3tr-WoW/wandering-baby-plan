@@ -146,6 +146,34 @@
         <input type="checkbox" id="toggle-scanline" checked />
         <span>监控扫描线</span>
       </label>
+      <div class="settings-block">
+        <h3 class="settings-subtitle">📡 量子通讯 · 星火 Lite</h3>
+        <p class="panel-desc settings-hint">
+          <strong>免费方案：</strong>在讯飞控制台领取 Lite 额度，复制 HTTP 接口的 <strong>APIPassword</strong> 粘贴到下方，保存即可直连，<strong>无需 CloudBase</strong>。
+          密钥只存在本机浏览器，不会上传 GitHub。
+        </p>
+        <label class="setting-row setting-row-col">
+          <span>APIPassword</span>
+          <input type="password" id="llm-spark-password" class="llm-proxy-input" placeholder="讯飞 HTTP 接口 APIPassword" autocomplete="off" />
+        </label>
+        <div class="settings-btn-row">
+          <button type="button" id="btn-save-spark-key" class="btn-primary">保存密钥</button>
+          <button type="button" id="btn-clear-spark-key" class="btn-secondary">清除</button>
+        </div>
+        <p id="llm-spark-status" class="llm-proxy-status dim">未配置 APIPassword</p>
+        <details class="settings-advanced">
+          <summary>高级：HTTP 代理（一般不需要）</summary>
+          <label class="setting-row setting-row-col">
+            <span>代理 URL</span>
+            <input type="url" id="llm-proxy-url" class="llm-proxy-input" placeholder="可选，CloudBase 地址" autocomplete="off" />
+          </label>
+          <div class="settings-btn-row">
+            <button type="button" id="btn-save-llm-proxy" class="btn-secondary">保存代理</button>
+            <button type="button" id="btn-clear-llm-proxy" class="btn-secondary">清除代理</button>
+          </div>
+          <p id="llm-proxy-status" class="llm-proxy-status dim">未配置代理</p>
+        </details>
+      </div>
       <button type="button" id="btn-new-game" class="btn-danger">清除存档 · 新游戏</button>
       <button type="button" id="btn-back-from-settings" class="btn-secondary">返回</button>
     </div>
@@ -229,6 +257,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260525c"></script>
+  <script type="module" src="js/app.js?v=20260526b"></script>
 </body>
 </html>

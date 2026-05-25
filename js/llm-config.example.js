@@ -1,17 +1,20 @@
 /**
- * LLM API 配置模板
- * 使用方法：复制本文件为 llm-config.js，填入你的 baseUrl 与 apiKey。
- * llm-config.js 已加入 .gitignore，请勿将密钥提交到公开仓库。
+ * 讯飞星火 Spark Lite — 本地配置模板
+ *
+ * 1. 打开 https://console.xfyun.cn/services/cbm 领取 Lite 免费额度
+ * 2. 在对应版本页面找到「HTTP 接口」→ 复制 APIPassword
+ *    （HTTP 用 APIPassword；APPID/APISecret/APIKey 主要用于 WebSocket，本项目用 HTTP 即可）
+ * 3. 复制本文件为 llm-config.js，填入 apiPassword
+ * 4. llm-config.js 已在 .gitignore，勿提交到 GitHub
  */
 export const LLM_CONFIG = {
-  /** API 根地址，末尾不要加斜杠。交大默认示例： */
-  baseUrl: 'https://models.sjtu.edu.cn/api/v1',
+  baseUrl: 'https://spark-api-open.xf-yun.com/v1',
 
-  /** 申请到的 API Key（Bearer Token） */
-  apiKey: '在此填写你的 API Key',
+  /** HTTP 接口 APIPassword，请求头：Authorization: Bearer <apiPassword> */
+  apiPassword: 'ognWJiqHOxpeEBzINHTD:WFQScIDmDgDdGJyaIQna',
 
-  /** 调用模型 id，参见 docs/调用文档指南.txt */
-  model: 'deepseek-chat',
+  /** Spark Lite 模型 id，见 docs/调用文档指南.txt */
+  model: 'lite',
 
   maxTokens: 1024,
   temperature: 0.75

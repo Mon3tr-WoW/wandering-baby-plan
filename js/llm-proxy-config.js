@@ -1,14 +1,11 @@
 /**
- * 线上 LLM 代理地址（可安全提交到 GitHub，不含 API Key）
- *
- * ⚠️ 修改后必须 git push，GitHub Pages 才会生效！
- * 部署步骤见 docs/LLM代理部署指南.md
+ * 讯飞星火 Spark Lite — 线上代理默认参数（可提交 GitHub，不含密钥）
  */
 export const LLM_PROXY = {
-  /** Cloudflare Worker 公网地址（不要末尾斜杠） */
-  proxyUrl: 'https://wanderingbabyllm.18916673120.workers.dev',
+  /** CloudBase / Worker 代理地址；留空则用设置页本机保存的地址 */
+  proxyUrl: '',
 
-  model: 'deepseek-chat',
+  model: 'lite',
   maxTokens: 1024,
   temperature: 0.75
 };
