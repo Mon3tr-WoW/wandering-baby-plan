@@ -31,7 +31,9 @@ python -m http.server 8080
 
 ## LLM「与新人类对话」
 
-复制 `js/llm-config.example.js` 为 `js/llm-config.js` 并填入 API Key（该文件已在 `.gitignore` 中）。
+本地：复制 `js/llm-config.example.js` 为 `js/llm-config.js` 并填入 API Key（该文件已在 `.gitignore`，不会上传）。
+
+线上 Pages **不部署** `llm-config.js` 时，游戏仍可正常游玩；LLM 对话会提示未配置 API。
 
 ## 技术栈
 

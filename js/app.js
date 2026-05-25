@@ -530,7 +530,13 @@ async function init() {
   applySettings();
   bindEvents();
   initStartSfx();
-  await setupLlmChat();
+
+  try {
+    await setupLlmChat();
+  } catch (err) {
+    console.warn('LLM 模块初始化失败，游戏其余功能仍可正常使用。', err);
+  }
+
   initStartFx(els.particleCanvas, els.startMusic);
 
   const titleText = story.meta.title || '流浪婴儿计划';

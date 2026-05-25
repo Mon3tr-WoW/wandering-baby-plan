@@ -113,7 +113,7 @@ export function openLlmChat() {
   if (!inited) {
     appendBubble('system', isLlmConfigured()
       ? '量子通讯频道已开启。'
-      : '⚠ 尚未配置 API：请编辑 js/llm-config.js');
+      : '⚠ 尚未配置 API Key（本地请编辑 js/llm-config.js）');
     appendBubble('assistant', OPEN_GREETING);
     inited = true;
   }

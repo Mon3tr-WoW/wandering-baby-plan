@@ -1,7 +1,38 @@
 /**
  * 新人类 LLM 对话 API
+ *
+ * llm-config.js 仅用于本地密钥（已 gitignore），线上缺失时自动回退到 example 默认配置，
+ * 避免 Pages 因 404 导致整站 JS 崩溃。
  */
-import { LLM_CONFIG } from './llm-config.js';
+
+const DEFAULT_LLM_CONFIG = {
+  baseUrl: 'https://models.sjtu.edu.cn/api/v1',
+  apiKey: '',
+  model: 'deepseek-chat',
+  maxTokens: 1024,
+  temperature: 0.75
+};
+
+/** @type {typeof DEFAULT_LLM_CONFIG} */
+let LLM_CONFIG = { ...DEFAULT_LLM_CONFIG };
+let configLoaded = false;
+
+async function loadLlmConfig() {
+  if (configLoaded) return;
+  configLoaded = true;
+
+  for (const path of ['./llm-config.js', './llm-config.example.js']) {
+    try {
+      const mod = await import(path);
+      if (mod?.LLM_CONFIG) {
+        LLM_CONFIG = { ...DEFAULT_LLM_CONFIG, ...mod.LLM_CONFIG };
+        return;
+      }
+    } catch {
+      /* 本地无 llm-config.js 或线上未部署时，继续尝试下一项 */
+    }
+  }
+}
 
 /** @type {string} */
 let systemPrompt = '';
@@ -9,6 +40,8 @@ let systemPrompt = '';
 let history = [];
 
 export async function initLlm() {
+  await loadLlmConfig();
+
   try {
     const res = await fetch('docs/Prompt.txt');
     if (res.ok) {
@@ -45,8 +78,10 @@ function buildMessages(userText) {
  * @returns {Promise<string>}
  */
 export async function sendToNewHuman(userText) {
+  await loadLlmConfig();
+
   if (!isLlmConfigured()) {
-    throw new Error('请先在 js/llm-config.js 中填写 API Key 与 Base URL。');
+    throw new Error('尚未配置 API Key。本地请编辑 js/llm-config.js；线上需在部署前填入配置或改用环境变量方案。');
   }
 
   const url = `${LLM_CONFIG.baseUrl.replace(/\/$/, '')}/chat/completions`;
