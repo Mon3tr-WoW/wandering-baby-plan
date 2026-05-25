@@ -1,19 +1,23 @@
 /**
- * 新人类 LLM — 讯飞星火 Spark Lite（HTTP 直连，免费）
+ * 新人类 LLM — 讯飞星火 Spark Lite
  *
- * 默认：系统设置填写 APIPassword → 浏览器直连星火公网 API，无需 CloudBase。
- * 可选：填代理 URL（高级，一般不需要）。
+ * 浏览器无法 HTTP 直连（CORS），默认走 WebSocket（免费、无需 CloudBase）。
  */
 
 import {
   loadProxyUrlOverride,
-  loadSparkPasswordOverride
+  loadSparkPasswordOverride,
+  loadSparkWsCredentials
 } from './llm-storage.js';
+import { sendSparkWsChat } from './spark-ws.js';
 
 const SPARK_BASE = 'https://spark-api-open.xf-yun.com/v1';
 
 const DEFAULT_LLM_CONFIG = {
   baseUrl: SPARK_BASE,
+  appId: '',
+  apiKey: '',
+  apiSecret: '',
   apiPassword: '',
   model: 'lite',
   maxTokens: 1024,
@@ -33,6 +37,20 @@ let LLM_CONFIG = { ...DEFAULT_LLM_CONFIG };
 let LLM_PROXY = { ...DEFAULT_LLM_PROXY };
 let configLoaded = false;
 
+function getWsCredentials() {
+  const stored = loadSparkWsCredentials();
+  if (stored.appId && stored.apiKey && stored.apiSecret) return stored;
+  const { appId, apiKey, apiSecret } = LLM_CONFIG;
+  if (appId?.trim() && apiKey?.trim() && apiSecret?.trim()) {
+    return { appId: appId.trim(), apiKey: apiKey.trim(), apiSecret: apiSecret.trim() };
+  }
+  return null;
+}
+
+function useWebSocketMode() {
+  return !!getWsCredentials();
+}
+
 function getEffectiveProxyUrl() {
   const override = loadProxyUrlOverride();
   if (override && !override.includes('你的')) return override;
@@ -42,14 +60,13 @@ function getEffectiveProxyUrl() {
 }
 
 function useProxyMode() {
-  return getEffectiveProxyUrl().length > 0 && !getApiPassword();
+  return !useWebSocketMode() && getEffectiveProxyUrl().length > 0;
 }
 
 function getApiPassword() {
   const fromStorage = loadSparkPasswordOverride();
   if (fromStorage) return fromStorage;
-
-  const pw = LLM_CONFIG.apiPassword?.trim() ?? LLM_CONFIG.apiKey?.trim() ?? '';
+  const pw = LLM_CONFIG.apiPassword?.trim() ?? '';
   if (!pw || pw.includes('在此填写')) return '';
   return pw;
 }
@@ -70,27 +87,11 @@ async function loadLlmConfig() {
     }
   }
 
-  for (const path of ['./llm-spark-public.js', './llm-spark-public.example.js']) {
-    try {
-      const mod = await import(path);
-      const pub = mod?.SPARK_API_PASSWORD?.trim() ?? '';
-      if (pub && !pub.includes('在此填写')) {
-        LLM_CONFIG.apiPassword = pub;
-        break;
-      }
-    } catch {
-      /* 忽略 */
-    }
-  }
-
   for (const path of ['./llm-config.js', './llm-config.example.js']) {
     try {
       const mod = await import(path);
       if (mod?.LLM_CONFIG) {
         LLM_CONFIG = { ...DEFAULT_LLM_CONFIG, ...mod.LLM_CONFIG };
-        if (mod.LLM_CONFIG.apiKey && !mod.LLM_CONFIG.apiPassword) {
-          LLM_CONFIG.apiPassword = mod.LLM_CONFIG.apiKey;
-        }
         break;
       }
     } catch {
@@ -113,9 +114,7 @@ export async function initLlm() {
 
   try {
     const res = await fetch('docs/Prompt.txt');
-    if (res.ok) {
-      systemPrompt = (await res.text()).trim();
-    }
+    if (res.ok) systemPrompt = (await res.text()).trim();
   } catch {
     systemPrompt = '你是来自未来的新人类代表，语气平静、俯瞰旧人类。';
   }
@@ -126,72 +125,70 @@ export function resetLlmChat() {
 }
 
 export function isLlmConfigured() {
-  return useProxyMode() || !!getApiPassword();
+  return useWebSocketMode() || useProxyMode();
 }
 
 export function getLlmModeLabel() {
+  if (useWebSocketMode()) return '量子链路 · 星火 Lite（WebSocket）';
   if (useProxyMode()) return '量子链路 · 星火 Lite（代理）';
-  if (getApiPassword()) return '量子链路 · 星火 Lite（直连）';
+  if (getApiPassword()) return '量子链路 · 星火 Lite（HTTP，可能受 CORS 限制）';
   return '未配置';
 }
 
 function buildMessages(userText) {
   const msgs = [];
-  if (systemPrompt) {
-    msgs.push({ role: 'system', content: systemPrompt });
-  }
-  for (const m of history) {
-    msgs.push({ role: m.role, content: m.content });
-  }
+  if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
+  for (const m of history) msgs.push({ role: m.role, content: m.content });
   msgs.push({ role: 'user', content: userText });
   return msgs;
 }
 
 function notConfiguredError() {
   throw new Error(
-    '尚未配置星火 APIPassword。请打开「系统设置 → 量子通讯」，粘贴讯飞控制台 HTTP 接口的 APIPassword 并保存。' +
-    '申请免费额度见 docs/LLM配置指南.md'
+    '尚未配置星火密钥。请打开「系统设置 → 量子通讯」，填写 APPID、APIKey、APISecret 并保存。' +
+    '详见 docs/LLM配置指南.md'
   );
 }
 
-function parseSparkResponse(data) {
+function parseSparkHttpResponse(data) {
   if (data?.code !== undefined && data.code !== 0) {
     throw new Error(`星火 API ${data.code}：${data.message || '请求失败'}`);
   }
-  if (data?.error?.message) {
-    throw new Error(String(data.error.message));
-  }
+  if (data?.error?.message) throw new Error(String(data.error.message));
   const msg = data?.choices?.[0]?.message;
   return (msg?.content ?? msg?.reasoning_content ?? '').trim();
 }
 
-function buildSparkBody(messages, model, maxTokens, temperature) {
-  return {
-    model,
-    messages,
-    stream: false,
-    max_tokens: maxTokens,
-    temperature
-  };
+async function sendViaWebSocket(userText) {
+  const creds = getWsCredentials();
+  if (!creds) notConfiguredError();
+
+  return sendSparkWsChat({
+    appId: creds.appId,
+    apiKey: creds.apiKey,
+    apiSecret: creds.apiSecret,
+    messages: buildMessages(userText),
+    domain: LLM_CONFIG.model || 'lite',
+    maxTokens: LLM_CONFIG.maxTokens,
+    temperature: LLM_CONFIG.temperature
+  });
 }
 
 async function sendViaProxy(userText) {
   const url = getEffectiveProxyUrl().replace(/\/$/, '');
-  const body = buildSparkBody(
-    buildMessages(userText),
-    LLM_PROXY.model,
-    LLM_PROXY.maxTokens,
-    LLM_PROXY.temperature
-  );
+  const body = {
+    model: LLM_PROXY.model,
+    messages: buildMessages(userText),
+    stream: false,
+    max_tokens: LLM_PROXY.maxTokens,
+    temperature: LLM_PROXY.temperature
+  };
 
   let res;
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
   } catch {
@@ -204,20 +201,14 @@ async function sendViaProxy(userText) {
   }
 
   const data = await res.json();
-  const reply = parseSparkResponse(data);
+  const reply = parseSparkHttpResponse(data);
   if (!reply) throw new Error('星火模型未返回有效内容。');
   return reply;
 }
 
-async function sendDirect(userText) {
+async function sendViaHttp(userText) {
   const password = getApiPassword();
   const url = `${(LLM_CONFIG.baseUrl || SPARK_BASE).replace(/\/$/, '')}/chat/completions`;
-  const body = buildSparkBody(
-    buildMessages(userText),
-    LLM_CONFIG.model,
-    LLM_CONFIG.maxTokens,
-    LLM_CONFIG.temperature
-  );
 
   let res;
   try {
@@ -228,11 +219,17 @@ async function sendDirect(userText) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${password}`
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        model: LLM_CONFIG.model,
+        messages: buildMessages(userText),
+        stream: false,
+        max_tokens: LLM_CONFIG.maxTokens,
+        temperature: LLM_CONFIG.temperature
+      })
     });
   } catch {
     throw new Error(
-      '无法连接星火 API。若浏览器报 CORS 错误，可改用代理（见 docs/LLM配置指南.md 高级选项）。'
+      '浏览器无法 HTTP 直连星火（CORS 限制）。请在系统设置填写 APPID、APIKey、APISecret 使用 WebSocket。'
     );
   }
 
@@ -242,7 +239,7 @@ async function sendDirect(userText) {
   }
 
   const data = await res.json();
-  const reply = parseSparkResponse(data);
+  const reply = parseSparkHttpResponse(data);
   if (!reply) throw new Error('星火模型未返回有效内容。');
   return reply;
 }
@@ -254,11 +251,16 @@ async function sendDirect(userText) {
 export async function sendToNewHuman(userText) {
   await loadLlmConfig();
 
-  if (!isLlmConfigured()) {
-    notConfiguredError();
-  }
+  if (!isLlmConfigured()) notConfiguredError();
 
-  const reply = useProxyMode() ? await sendViaProxy(userText) : await sendDirect(userText);
+  let reply;
+  if (useWebSocketMode()) {
+    reply = await sendViaWebSocket(userText);
+  } else if (useProxyMode()) {
+    reply = await sendViaProxy(userText);
+  } else {
+    reply = await sendViaHttp(userText);
+  }
 
   history.push({ role: 'user', content: userText });
   history.push({ role: 'assistant', content: reply });

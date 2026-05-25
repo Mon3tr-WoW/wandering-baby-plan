@@ -25,10 +25,10 @@ import {
   loadProxyUrlOverride,
   saveProxyUrlOverride,
   clearProxyUrlOverride,
-  loadSparkPasswordOverride,
-  saveSparkPasswordOverride,
-  clearSparkPasswordOverride,
-  hasSparkPasswordOverride
+  loadSparkWsCredentials,
+  saveSparkWsCredentials,
+  clearSparkWsCredentials,
+  hasSparkWsCredentials
 } from './llm-storage.js';
 import { reloadLlmRuntimeConfig, getLlmModeLabel } from './llm.js';
 
@@ -441,15 +441,26 @@ function bindStartMenuSfx() {
 }
 
 function updateLlmSparkSettingsUi() {
-  const input = $('#llm-spark-password');
+  const appIdInput = $('#llm-spark-appid');
+  const apiKeyInput = $('#llm-spark-apikey');
+  const apiSecretInput = $('#llm-spark-apisecret');
   const status = $('#llm-spark-status');
+  const saved = loadSparkWsCredentials();
+
   if (status) {
-    status.textContent = hasSparkPasswordOverride()
-      ? '已保存 APIPassword（本机）· ' + getLlmModeLabel()
-      : '未配置 APIPassword';
+    status.textContent = hasSparkWsCredentials()
+      ? '已保存 WebSocket 密钥（本机）· ' + getLlmModeLabel()
+      : '未配置 WebSocket 密钥';
   }
-  if (input && !input.matches(':focus') && hasSparkPasswordOverride()) {
-    input.value = '********';
+
+  if (appIdInput && !appIdInput.matches(':focus') && saved.appId) {
+    appIdInput.value = saved.appId;
+  }
+  if (apiKeyInput && !apiKeyInput.matches(':focus') && saved.apiKey) {
+    apiKeyInput.value = '********';
+  }
+  if (apiSecretInput && !apiSecretInput.matches(':focus') && saved.apiSecret) {
+    apiSecretInput.value = '********';
   }
 }
 
@@ -471,12 +482,25 @@ function bindLlmSparkSettings() {
   updateLlmSparkSettingsUi();
 
   $('#btn-save-spark-key')?.addEventListener('click', () => {
-    const pw = $('#llm-spark-password')?.value.trim() ?? '';
-    if (!pw) {
-      alert('请粘贴讯飞 HTTP 接口的 APIPassword');
+    const appId = $('#llm-spark-appid')?.value.trim() ?? '';
+    const apiKey = $('#llm-spark-apikey')?.value.trim() ?? '';
+    const apiSecret = $('#llm-spark-apisecret')?.value.trim() ?? '';
+    const saved = loadSparkWsCredentials();
+
+    const finalAppId = appId || saved.appId;
+    const finalApiKey = !apiKey || apiKey === '********' ? saved.apiKey : apiKey;
+    const finalApiSecret = !apiSecret || apiSecret === '********' ? saved.apiSecret : apiSecret;
+
+    if (!finalAppId || !finalApiKey || !finalApiSecret) {
+      alert('请填写完整的 APPID、APIKey、APISecret（来自讯飞控制台 WebSocket 鉴权信息）');
       return;
     }
-    saveSparkPasswordOverride(pw);
+
+    saveSparkWsCredentials({
+      appId: finalAppId,
+      apiKey: finalApiKey,
+      apiSecret: finalApiSecret
+    });
     reloadLlmRuntimeConfig();
     updateLlmSparkSettingsUi();
     playButtonConfirm();
@@ -484,10 +508,14 @@ function bindLlmSparkSettings() {
   });
 
   $('#btn-clear-spark-key')?.addEventListener('click', () => {
-    clearSparkPasswordOverride();
+    clearSparkWsCredentials();
     reloadLlmRuntimeConfig();
-    const input = $('#llm-spark-password');
-    if (input) input.value = '';
+    const appIdInput = $('#llm-spark-appid');
+    const apiKeyInput = $('#llm-spark-apikey');
+    const apiSecretInput = $('#llm-spark-apisecret');
+    if (appIdInput) appIdInput.value = '';
+    if (apiKeyInput) apiKeyInput.value = '';
+    if (apiSecretInput) apiSecretInput.value = '';
     updateLlmSparkSettingsUi();
   });
 }

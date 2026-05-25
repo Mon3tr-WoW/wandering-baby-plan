@@ -31,9 +31,9 @@ python -m http.server 8080
 
 ## LLM「与新人类对话」
 
-使用 **讯飞星火 Spark Lite**（免费、公网 HTTP）。
+使用 **讯飞星火 Spark Lite**（免费、公网 WebSocket 直连）。
 
-**推荐：** 游戏 **系统设置** 粘贴 APIPassword → 保存 → 直连，**无需 CloudBase**。
+**推荐：** 游戏 **系统设置** 填写 APPID / APIKey / APISecret → 保存 → 对话，**无需 CloudBase**。
 
 步骤：[docs/LLM配置指南.md](docs/LLM配置指南.md)
 

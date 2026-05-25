@@ -113,7 +113,7 @@ export function openLlmChat() {
   if (!inited) {
     appendBubble('system', isLlmConfigured()
       ? getLlmModeLabel()
-      : '⚠ 请打开系统设置，粘贴星火 APIPassword 并保存。见 docs/LLM配置指南.md');
+      : '⚠ 请打开系统设置，填写星火 WebSocket 密钥（APPID / APIKey / APISecret）并保存。见 docs/LLM配置指南.md');
     appendBubble('assistant', OPEN_GREETING);
     inited = true;
   }
