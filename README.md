@@ -31,9 +31,12 @@ python -m http.server 8080
 
 ## LLM「与新人类对话」
 
-本地：复制 `js/llm-config.example.js` 为 `js/llm-config.js` 并填入 API Key（该文件已在 `.gitignore`，不会上传）。
+| 环境 | 配置 |
+|------|------|
+| 本地 `localhost` | 复制 `js/llm-config.example.js` → `js/llm-config.js`，填入 API Key（**不上传 GitHub**） |
+| 线上 GitHub Pages | 部署 **Cloudflare Worker** 代理，在 `js/llm-proxy-config.js` 填 Worker 地址（**不含 Key**） |
 
-线上 Pages **不部署** `llm-config.js` 时，游戏仍可正常游玩；LLM 对话会提示未配置 API。
+完整步骤：[docs/LLM代理部署指南.md](docs/LLM代理部署指南.md)
 
 ## 技术栈
 

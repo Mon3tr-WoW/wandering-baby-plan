@@ -1,0 +1,15 @@
+# Cloudflare Worker 配置模板
+# 用法：复制为 wrangler.toml，再执行 wrangler secret put LLM_API_KEY
+
+name = "wandering-baby-llm"
+main = "llm-proxy.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+LLM_BASE_URL = "https://models.sjtu.edu.cn/api/v1"
+LLM_MODEL = "deepseek-chat"
+ALLOWED_ORIGINS = "https://mon3tr-wow.github.io"
+
+# 密钥不要写在这里！请用命令行注入：
+#   cd worker
+#   npx wrangler secret put LLM_API_KEY

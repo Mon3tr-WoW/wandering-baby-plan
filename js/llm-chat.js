@@ -1,7 +1,7 @@
 /**
  * 新人类量子通讯 — 聊天界面
  */
-import { initLlm, resetLlmChat, sendToNewHuman, isLlmConfigured } from './llm.js';
+import { initLlm, resetLlmChat, sendToNewHuman, isLlmConfigured, getLlmModeLabel } from './llm.js';
 
 const els = {
   overlay: null,
@@ -80,7 +80,7 @@ function setBusy(on) {
   if (els.send) els.send.disabled = on;
   if (els.input) els.input.disabled = on;
   if (els.status) {
-    els.status.textContent = on ? '信号传输中…' : isLlmConfigured() ? '链路就绪' : '未配置 API';
+    els.status.textContent = on ? '信号传输中…' : getLlmModeLabel();
   }
 }
 
@@ -112,8 +112,8 @@ export function openLlmChat() {
 
   if (!inited) {
     appendBubble('system', isLlmConfigured()
-      ? '量子通讯频道已开启。'
-      : '⚠ 尚未配置 API Key（本地请编辑 js/llm-config.js）');
+      ? getLlmModeLabel()
+      : '⚠ 尚未配置：本地编辑 js/llm-config.js；线上见 docs/LLM代理部署指南.md');
     appendBubble('assistant', OPEN_GREETING);
     inited = true;
   }
@@ -157,7 +157,7 @@ export async function setupLlmChat() {
   });
 
   if (els.status) {
-    els.status.textContent = isLlmConfigured() ? '链路就绪' : '未配置 API';
+    els.status.textContent = getLlmModeLabel();
   }
 }
 
