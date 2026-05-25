@@ -11,7 +11,8 @@ import {
   pauseStartMusic,
   setStartMusicVolume,
   setStartCanvasActive,
-  setupTitleChars
+  setupTitleChars,
+  forceRevealStartScreen
 } from './start-fx.js';
 import {
   initStartSfx,
@@ -19,10 +20,12 @@ import {
   playButtonChoose,
   playButtonConfirm
 } from './start-sfx.js';
-import { setupLlmChat, showPerfectLlmButton } from './llm-chat.js';
 import { VIDEO_BASE } from './video-config.js';
 
 const WARP_MS = 1600;
+
+/** @type {(show: boolean) => void} */
+let showPerfectLlmButton = () => {};
 
 /** @type {import('./story-types').StoryData} */
 let story = null;
@@ -99,6 +102,29 @@ function videoUrl(node) {
 
 function persist() {
   writeSave(save);
+}
+
+function normalizeSave(raw, startNode) {
+  const base = createFreshSave(startNode);
+  if (!raw || typeof raw !== 'object') return base;
+  return {
+    ...base,
+    ...raw,
+    settings: { ...base.settings, ...(raw.settings || {}) },
+    path: Array.isArray(raw.path) ? raw.path : base.path,
+    visited: Array.isArray(raw.visited) ? raw.visited : base.visited,
+    unlockedEndings: Array.isArray(raw.unlockedEndings) ? raw.unlockedEndings : base.unlockedEndings
+  };
+}
+
+async function initLlmModule() {
+  try {
+    const mod = await import('./llm-chat.js');
+    await mod.setupLlmChat();
+    showPerfectLlmButton = mod.showPerfectLlmButton;
+  } catch (err) {
+    console.warn('LLM 模块未加载，游戏主流程不受影响。', err);
+  }
 }
 
 function unlockEnding(endingKey) {
@@ -515,34 +541,50 @@ async function init() {
     await loadStory();
   } catch (err) {
     alert('加载剧情数据失败：' + err.message);
+    forceRevealStartScreen();
     return;
   }
 
+  const startNode = story.meta.startNode;
   const existing = loadSave();
   const continueBtn = $('#btn-continue');
+  save = normalizeSave(existing, startNode);
+
   if (existing?.currentNodeId && continueBtn) {
     continueBtn.classList.remove('hidden');
-    save = existing;
-  } else {
-    save = createFreshSave(story.meta.startNode);
   }
-
-  applySettings();
-  bindEvents();
-  initStartSfx();
 
   try {
-    await setupLlmChat();
+    applySettings();
+    bindEvents();
+    initStartSfx();
+    initStartFx(els.particleCanvas, els.startMusic);
+
+    const titleText = story.meta.title || '流浪婴儿计划';
+    setupTitleChars($('#title-main'), titleText);
+
+    showScreen('start');
+    document.body.classList.add('app-booted');
+
+    // LLM 异步加载，绝不阻塞开始界面
+    initLlmModule();
+
+    // 若入场动画 12 秒内未就绪，强制显示 UI（防黑屏兜底）
+    setTimeout(() => {
+      if (!document.body.classList.contains('intro-ui')) {
+        forceRevealStartScreen();
+      }
+    }, 12000);
   } catch (err) {
-    console.warn('LLM 模块初始化失败，游戏其余功能仍可正常使用。', err);
+    console.error('游戏初始化失败：', err);
+    forceRevealStartScreen();
+    document.body.classList.add('app-booted');
+    alert('界面初始化异常，已尝试恢复显示。若仍异常请 Ctrl+F5 强刷后重试。\n' + err.message);
   }
-
-  initStartFx(els.particleCanvas, els.startMusic);
-
-  const titleText = story.meta.title || '流浪婴儿计划';
-  setupTitleChars($('#title-main'), titleText);
-
-  showScreen('start');
 }
 
-init();
+init().catch((err) => {
+  console.error('启动失败：', err);
+  forceRevealStartScreen();
+  document.body.classList.add('app-booted');
+});

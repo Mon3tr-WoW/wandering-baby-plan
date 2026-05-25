@@ -1383,6 +1383,14 @@ button:hover {
 #btn-llm-test {
   right: 1.25rem;
   bottom: 1.25rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+body.app-booted #btn-llm-test {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .btn-llm-fab-game {

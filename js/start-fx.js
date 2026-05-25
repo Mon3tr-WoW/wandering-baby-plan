@@ -24,6 +24,7 @@ let meteorCooldown = 0;
 let introRunning = false;
 let introClockStart = 0;
 let introAudioSynced = false;
+let introRafId = 0;
 let reducedMotion = false;
 
 const INTRO = {
@@ -335,10 +336,6 @@ function tick(now) {
   lastFrame = now;
   floatT += 0.014;
 
-  if (introRunning) {
-    applyIntroTime(getIntroTime());
-  }
-
   const skyA =
     sceneAlpha > 0.01
       ? sceneAlpha
@@ -368,6 +365,28 @@ function tick(now) {
   }
 
   rafId = requestAnimationFrame(tick);
+}
+
+function stopIntroLoop() {
+  introRunning = false;
+  if (introRafId) {
+    cancelAnimationFrame(introRafId);
+    introRafId = 0;
+  }
+}
+
+function introLoop() {
+  if (!introRunning) {
+    introRafId = 0;
+    return;
+  }
+  applyIntroTime(getIntroTime());
+  introRafId = requestAnimationFrame(introLoop);
+}
+
+function startIntroLoop() {
+  introRunning = true;
+  if (!introRafId) introRafId = requestAnimationFrame(introLoop);
 }
 
 function setBodyIntroClass(cls) {
@@ -429,6 +448,7 @@ function applyIntroTime(t) {
 }
 
 function finishIntroInstant() {
+  stopIntroLoop();
   const curtain = document.getElementById('start-intro-curtain');
   if (curtain) {
     curtain.style.opacity = '0';
@@ -443,6 +463,13 @@ function finishIntroInstant() {
   document.querySelectorAll('#screen-start .start-reveal-item, #screen-start .sub-part').forEach((el) => {
     if (!el.classList.contains('hidden')) el.classList.add('start-revealed');
   });
+}
+
+/** 兜底：跳过入场动画，直接显示开始界面 */
+export function forceRevealStartScreen() {
+  introRunning = false;
+  document.body.classList.add('start-screen-active', 'start-intro-active', 'intro-ui');
+  finishIntroInstant();
 }
 
 export function setupTitleChars(titleEl, text) {
@@ -480,8 +507,6 @@ export function initStartFx(targetCanvas, audioEl) {
 }
 
 export async function playStartIntro() {
-  if (!startMusic) return;
-
   document.querySelectorAll('#screen-start .start-reveal-item').forEach((el) => {
     el.classList.remove('start-revealed');
   });
@@ -494,7 +519,6 @@ export async function playStartIntro() {
   meteorCooldown = rand(400, 900);
   introClockStart = performance.now();
   introAudioSynced = false;
-  introRunning = true;
 
   document.body.classList.add('start-intro-active');
   setStartCanvasActive(true);
@@ -507,20 +531,23 @@ export async function playStartIntro() {
 
   hideUnlockHint();
   applyIntroTime(0);
+  startIntroLoop();
 
   if (reducedMotion) {
     finishIntroInstant();
-    await tryPlayMusic();
+    if (startMusic) await tryPlayMusic();
     return;
   }
 
-  startMusic.currentTime = 0;
-  const played = await tryPlayMusic();
-  if (!played) showUnlockHint();
+  if (startMusic) {
+    startMusic.currentTime = 0;
+    const played = await tryPlayMusic();
+    if (!played) showUnlockHint();
+  }
 }
 
 export function pauseStartMusic() {
-  introRunning = false;
+  stopIntroLoop();
   if (startMusic) startMusic.pause();
 }
 
