@@ -277,9 +277,10 @@
       "title": "地球 · 伸手",
       "log": "飞船日志 · 节点 24：不！你留在飞船上，回到地球，新人类伸出了手。",
       "video": "24.mp4",
+      "gestureChoice": true,
       "choices": [
-        { "text": "警惕", "next": "26" },
-        { "text": "握上", "next": "27" }
+        { "text": "警惕", "next": "26", "gesture": "gun" },
+        { "text": "握上", "next": "27", "gesture": "handshake" }
       ]
     },
     "25": {

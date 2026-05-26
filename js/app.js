@@ -28,7 +28,9 @@ import {
   loadSparkWsCredentials,
   saveSparkWsCredentials,
   clearSparkWsCredentials,
-  hasSparkWsCredentials
+  hasSparkWsCredentials,
+  hasSparkPasswordOverride,
+  clearSparkPasswordOverride
 } from './llm-storage.js';
 import { reloadLlmRuntimeConfig, getLlmModeLabel } from './llm.js';
 
@@ -267,7 +269,32 @@ function onVideoEnded() {
     showEndingScreen(node);
     return;
   }
+  if (node.gestureChoice) {
+    openNodeGestureChoice(node);
+    return;
+  }
   showChoices(node);
+}
+
+async function openNodeGestureChoice(node) {
+  hideChoices();
+  try {
+    const mod = await import('./gesture-detection.js');
+    await mod.openGestureOverlay({
+      mode: 'story',
+      title: '地球轨道 · 最后抉择',
+      subtitle: '新人类在地球向你伸出了手。比出手枪 → 警惕；伸手握手 → 握上。保持约 1 秒确认。',
+      choices: (node.choices || []).map((c) => ({
+        label: c.text,
+        next: c.next,
+        gesture: c.gesture || (c.text.includes('警惕') ? 'gun' : 'handshake')
+      })),
+      onSelect: (nextId) => onChoiceSelected(nextId)
+    });
+  } catch (err) {
+    console.warn('手势模块加载失败，回退为鼠标选项。', err);
+    showChoices(node);
+  }
 }
 
 async function resolveVideoSrc(node) {
@@ -445,12 +472,24 @@ function updateLlmSparkSettingsUi() {
   const apiKeyInput = $('#llm-spark-apikey');
   const apiSecretInput = $('#llm-spark-apisecret');
   const status = $('#llm-spark-status');
+  const migrate = $('#llm-spark-migrate');
   const saved = loadSparkWsCredentials();
 
   if (status) {
     status.textContent = hasSparkWsCredentials()
       ? '已保存 WebSocket 密钥（本机）· ' + getLlmModeLabel()
       : '未配置 WebSocket 密钥';
+  }
+
+  if (migrate) {
+    if (hasSparkPasswordOverride() && !hasSparkWsCredentials()) {
+      migrate.classList.remove('hidden');
+      migrate.textContent =
+        '⚠ 检测到旧版 APIPassword 配置。HTTP 直连在浏览器中会 CORS 失败，请改填下方 APPID / APIKey / APISecret（讯飞控制台 WebSocket 鉴权信息）。';
+    } else {
+      migrate.classList.add('hidden');
+      migrate.textContent = '';
+    }
   }
 
   if (appIdInput && !appIdInput.matches(':focus') && saved.appId) {
@@ -501,6 +540,7 @@ function bindLlmSparkSettings() {
       apiKey: finalApiKey,
       apiSecret: finalApiSecret
     });
+    clearSparkPasswordOverride();
     reloadLlmRuntimeConfig();
     updateLlmSparkSettingsUi();
     playButtonConfirm();
@@ -509,6 +549,7 @@ function bindLlmSparkSettings() {
 
   $('#btn-clear-spark-key')?.addEventListener('click', () => {
     clearSparkWsCredentials();
+    clearSparkPasswordOverride();
     reloadLlmRuntimeConfig();
     const appIdInput = $('#llm-spark-appid');
     const apiKeyInput = $('#llm-spark-apikey');
@@ -623,6 +664,7 @@ function bindEvents() {
   els.video?.addEventListener('timeupdate', () => {
     const node = nodeById(save?.currentNodeId);
     if (!node || node.ending || !node.choices?.length) return;
+    if (node.gestureChoice) return;
     if (els.video.duration && els.video.currentTime >= els.video.duration - 0.25) {
       if (els.choices.classList.contains('hidden')) {
         showChoices(node);
@@ -691,6 +733,14 @@ async function init() {
 
     // LLM 异步加载，绝不阻塞开始界面
     initLlmModule();
+
+    // 手势检测：测试按钮 + 预加载 MediaPipe
+    import('./gesture-detection.js')
+      .then((mod) => {
+        mod.setupGestureTestButton();
+        mod.preloadGestureEngine();
+      })
+      .catch((err) => console.warn('手势模块未加载。', err));
 
     // 若入场动画 12 秒内未就绪，强制显示 UI（防黑屏兜底）
     setTimeout(() => {

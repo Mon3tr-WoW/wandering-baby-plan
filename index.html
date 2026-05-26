@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>流浪婴儿计划</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -117,6 +120,7 @@
     <footer class="start-footer start-reveal-item">
       <span class="dim">v1 · 静态互动版</span>
     </footer>
+    <button type="button" id="btn-gesture-test" class="btn-llm-fab btn-gesture-fab" title="测试：手势实时检测">手势实时检测</button>
     <button type="button" id="btn-llm-test" class="btn-llm-fab" data-open-llm title="测试：与新人类对话">与新人类对话</button>
   </section>
 
@@ -169,6 +173,7 @@
           <button type="button" id="btn-clear-spark-key" class="btn-secondary">清除</button>
         </div>
         <p id="llm-spark-status" class="llm-proxy-status dim">未配置 WebSocket 密钥</p>
+        <p id="llm-spark-migrate" class="llm-proxy-status hidden" role="alert"></p>
         <details class="settings-advanced">
           <summary>高级：HTTP 代理（可选）</summary>
           <label class="setting-row setting-row-col">
@@ -242,11 +247,60 @@
     <div id="perfect-hooks" class="perfect-hooks hidden">
       <button type="button" id="btn-perfect-llm" class="btn-llm-fab btn-llm-fab-game hidden" data-open-llm>与新人类对话</button>
       <div class="hook-block" id="yolo-hook">
-        <p class="hook-label">📷 手势物理验证（预留）</p>
-        <p class="hook-desc">握手 / 武器手势检测将在此接入，导向额外结局。</p>
+        <p class="hook-label">📷 手势物理验证</p>
+        <p class="hook-desc">节点 24 视频结束后将自动启用手势抉择（警惕 / 握上）。开始界面可用手势实时检测测试。</p>
       </div>
     </div>
   </section>
+
+  <!-- 手势物理验证 -->
+  <div id="gesture-overlay" class="gesture-overlay hidden" aria-hidden="true" role="dialog" aria-labelledby="gesture-title">
+    <div class="gesture-panel">
+      <header class="gesture-header">
+        <p class="gesture-tag">BIOMETRIC SCAN · ARK PROTOCOL</p>
+        <h2 id="gesture-title">生物特征验证 · 手势协议</h2>
+        <p id="gesture-subtitle" class="gesture-subtitle">新人类伸出了手。比出手枪手势 → 警惕；伸手握手 → 握上。</p>
+        <button type="button" id="gesture-close" class="gesture-close" aria-label="关闭">✕</button>
+      </header>
+
+      <div class="gesture-viewport">
+        <video id="gesture-video" class="gesture-video" playsinline muted autoplay></video>
+        <canvas id="gesture-canvas" class="gesture-canvas" aria-hidden="true"></canvas>
+        <div class="gesture-scanlines" aria-hidden="true"></div>
+        <div class="gesture-frame-corners" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <p class="gesture-live-label">LIVE FEED</p>
+      </div>
+
+      <div class="gesture-info">
+        <p id="gesture-hint" class="gesture-hint">正在初始化…</p>
+        <p id="gesture-status" class="gesture-status-line">—</p>
+        <div class="gesture-meters">
+          <div id="gesture-meter-gun" class="gesture-meter gesture-meter-gun">
+            <span class="gesture-meter-label">🔫 警惕 · 手枪手势</span>
+            <div class="gesture-meter-track"><div class="gesture-meter-fill"></div></div>
+          </div>
+          <div id="gesture-meter-handshake" class="gesture-meter gesture-meter-handshake">
+            <span class="gesture-meter-label">🤝 握上 · 伸手/握手</span>
+            <div class="gesture-meter-track"><div class="gesture-meter-fill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="gesture-fallback" class="gesture-fallback hidden">
+        <p class="gesture-fallback-title">手动确认</p>
+        <div class="gesture-fallback-btns">
+          <button type="button" class="btn-gesture-choice btn-gesture-gun" data-next="26">警惕 · 保持距离</button>
+          <button type="button" class="btn-gesture-choice btn-gesture-handshake" data-next="27">握上 · 接受伸来的手</button>
+        </div>
+      </div>
+
+      <footer class="gesture-footer">
+        <button type="button" id="gesture-skip" class="btn-secondary">跳过手势检测</button>
+      </footer>
+    </div>
+  </div>
 
   <!-- 新人类量子通讯 -->
   <div id="llm-chat-overlay" class="llm-chat-overlay hidden" aria-hidden="true" role="dialog" aria-labelledby="llm-chat-title">
@@ -265,6 +319,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260526b"></script>
+  <script type="module" src="js/app.js?v=20260527a"></script>
 </body>
 </html>
