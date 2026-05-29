@@ -16,6 +16,7 @@ let maskSvg = null;
 
 const els = {
   colorLayer: null,
+  clickGate: null,
   hint: null,
   maskBg: null,
   maskHole: null,
@@ -37,6 +38,7 @@ function getScanHalfSize() {
 function bindDom() {
   if (els.colorLayer) return;
   els.colorLayer = document.getElementById('start-color-layer');
+  els.clickGate = document.getElementById('start-click-gate');
   els.hint = document.getElementById('start-scan-hint');
 }
 
@@ -102,7 +104,8 @@ function getScanRect(x, y) {
   };
 }
 
-function applyScanMask(rect) {
+/** 视觉羽化：SVG mask 仅负责渐变，不参与点击判定 */
+function applyVisualMask(rect) {
   if (!els.colorLayer) return;
   ensureFeatherMask();
   syncMaskViewport();
@@ -116,14 +119,46 @@ function applyScanMask(rect) {
 
   els.colorLayer.style.mask = 'url(#start-scan-mask)';
   els.colorLayer.style.webkitMask = 'url(#start-scan-mask)';
-  els.colorLayer.style.clipPath = 'none';
 }
 
-function clearScanMask() {
+/** 点击门控：硬边 clip-path 挖洞，透视区内可点到下层按钮 */
+function applyClickGate(rect) {
+  if (!els.clickGate) return;
+  const { left, top, right, bottom } = rect;
+  els.clickGate.style.clipPath = `polygon(
+    evenodd,
+    0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
+    ${left}px ${top}px,
+    ${right}px ${top}px,
+    ${right}px ${bottom}px,
+    ${left}px ${bottom}px,
+    ${left}px ${top}px
+  )`;
+  els.clickGate.classList.remove('hidden');
+  els.clickGate.setAttribute('aria-hidden', 'false');
+}
+
+function clearVisualMask() {
   if (!els.colorLayer) return;
   els.colorLayer.style.mask = 'none';
   els.colorLayer.style.webkitMask = 'none';
-  els.colorLayer.style.clipPath = 'none';
+}
+
+function clearClickGate() {
+  if (!els.clickGate) return;
+  els.clickGate.style.clipPath = 'none';
+  els.clickGate.classList.add('hidden');
+  els.clickGate.setAttribute('aria-hidden', 'true');
+}
+
+function applyScanWindow(rect) {
+  applyVisualMask(rect);
+  applyClickGate(rect);
+}
+
+function clearScanWindow() {
+  clearVisualMask();
+  clearClickGate();
 }
 
 function setScanActive(on) {
@@ -132,9 +167,9 @@ function setScanActive(on) {
   els.hint?.classList.toggle('scan-mode-on', scanActive);
 
   if (scanActive) {
-    applyScanMask(getScanRect(pointerX, pointerY));
+    applyScanWindow(getScanRect(pointerX, pointerY));
   } else {
-    clearScanMask();
+    clearScanWindow();
   }
 }
 
@@ -147,7 +182,7 @@ export function setStartScanPointer(x, y) {
   pointerX = x;
   pointerY = y;
   if (!scanActive) return;
-  applyScanMask(getScanRect(x, y));
+  applyScanWindow(getScanRect(x, y));
 }
 
 function onContextMenu(e) {
@@ -173,7 +208,7 @@ function onKeyDown(e) {
 
 function onResize() {
   syncMaskViewport();
-  if (scanActive) applyScanMask(getScanRect(pointerX, pointerY));
+  if (scanActive) applyScanWindow(getScanRect(pointerX, pointerY));
 }
 
 function onScreenChange() {

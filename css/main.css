@@ -682,8 +682,22 @@ body.start-intro-active.intro-ui #particles {
   pointer-events: none;
 }
 
-.start-layer-color {
+.start-click-gate {
   z-index: 3;
+  pointer-events: none;
+  background: transparent;
+}
+
+body.start-scan-active .start-click-gate:not(.hidden) {
+  pointer-events: auto;
+}
+
+body.start-scan-active .start-layer-color {
+  pointer-events: none;
+}
+
+.start-layer-color {
+  z-index: 4;
   pointer-events: auto;
   transition: opacity 1.4s ease;
 }
