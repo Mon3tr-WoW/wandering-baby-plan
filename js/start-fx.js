@@ -10,6 +10,7 @@ let ctx = null;
 let startMusic = null;
 
 let dustParticles = [];
+let dustGrains = [];
 let rafId = 0;
 let enabled = true;
 let canvasActive = false;
@@ -82,10 +83,34 @@ function createDustParticle(x, y) {
   };
 }
 
+/** 微尘粒：不规则细屑，附于絮团之间 */
+function createDustGrain(x, y) {
+  const rgb = pickDustTone();
+  const size = rand(0.7, 2.4);
+  return {
+    x,
+    y,
+    vx: rand(-0.1, 0.1),
+    vy: rand(-0.16, 0.04),
+    size,
+    aspect: rand(0.45, 1.15),
+    angle: rand(0, Math.PI * 2),
+    drift: rand(0.006, 0.018),
+    phase: Math.random() * Math.PI * 2,
+    twinkle: rand(0.004, 0.012),
+    strength: rand(0.48, 0.92),
+    rgb,
+    satellite: Math.random() > 0.55
+      ? { ox: rand(-2.2, 2.2), oy: rand(-1.8, 1.8), s: rand(0.35, 0.85) }
+      : null
+  };
+}
+
 /** 网格抖动：全屏均匀分布（密度约为此前一半） */
 function buildDustField() {
   const area = width * height;
   const count = Math.min(140, Math.max(60, Math.floor(area / 10000)));
+  const grainCount = Math.min(200, Math.max(85, Math.floor(area / 7500)));
   const aspect = width / Math.max(height, 1);
   const cols = Math.max(10, Math.round(Math.sqrt(count * aspect)));
   const rows = Math.max(8, Math.ceil(count / cols));
@@ -104,6 +129,25 @@ function buildDustField() {
       );
     }
   }
+
+  const gAspect = width / Math.max(height, 1);
+  const gCols = Math.max(12, Math.round(Math.sqrt(grainCount * gAspect)));
+  const gRows = Math.max(9, Math.ceil(grainCount / gCols));
+  const gCellW = width / gCols;
+  const gCellH = height / gRows;
+
+  dustGrains = [];
+  for (let row = 0; row < gRows; row++) {
+    for (let col = 0; col < gCols; col++) {
+      if (dustGrains.length >= grainCount) break;
+      dustGrains.push(
+        createDustGrain(
+          (col + 0.08 + Math.random() * 0.84) * gCellW,
+          (row + 0.08 + Math.random() * 0.84) * gCellH
+        )
+      );
+    }
+  }
 }
 
 function respawnDust(p) {
@@ -116,6 +160,20 @@ function respawnDust(p) {
     createDustParticle(
       (Math.floor(Math.random() * cols) + 0.12 + Math.random() * 0.76) * cellW,
       (Math.floor(Math.random() * rows) + 0.12 + Math.random() * 0.76) * cellH
+    )
+  );
+}
+
+function respawnGrain(g) {
+  const cols = 14;
+  const rows = 10;
+  const cellW = width / cols;
+  const cellH = height / rows;
+  Object.assign(
+    g,
+    createDustGrain(
+      (Math.floor(Math.random() * cols) + 0.08 + Math.random() * 0.84) * cellW,
+      (Math.floor(Math.random() * rows) + 0.08 + Math.random() * 0.84) * cellH
     )
   );
 }
@@ -214,6 +272,53 @@ function drawDustCloud(p, layerA) {
   ctx.restore();
 }
 
+/** 微尘粒：柔边细屑 + 偶发伴生微粒，非长条 */
+function drawDustGrain(g, layerA) {
+  const flicker = 0.8 + Math.sin(g.phase) * 0.2;
+  const a = g.strength * flicker * layerA;
+  if (a < 0.05) return;
+
+  const hi = lerpRgb(g.rgb, DUST_HI, 0.5);
+  const lo = lerpRgb(g.rgb, DUST_LO, 0.4);
+  const coreR = g.size;
+  const haloR = coreR * 2.6;
+
+  ctx.save();
+  ctx.translate(g.x, g.y);
+  ctx.rotate(g.angle);
+  ctx.globalCompositeOperation = 'source-over';
+
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+  halo.addColorStop(0, rgba(hi, a * 0.55));
+  halo.addColorStop(0.35, rgba(g.rgb, a * 0.42));
+  halo.addColorStop(0.7, rgba(g.rgb, a * 0.14));
+  halo.addColorStop(1, rgba(lo, 0));
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, coreR * g.aspect, coreR, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = rgba(hi, a * 0.38);
+  ctx.beginPath();
+  ctx.ellipse(coreR * 0.15, -coreR * 0.1, coreR * 0.35, coreR * 0.28, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (g.satellite) {
+    const sx = g.satellite.ox;
+    const sy = g.satellite.oy;
+    const sr = g.satellite.s * coreR * 0.55;
+    const sGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2);
+    sGrad.addColorStop(0, rgba(g.rgb, a * 0.36));
+    sGrad.addColorStop(1, rgba(lo, 0));
+    ctx.fillStyle = sGrad;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, sr * 1.1, sr * 0.75, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 let lastFrame = 0;
 
 function tick(now) {
@@ -241,6 +346,18 @@ function tick(now) {
       }
 
       drawDustCloud(p, layerA);
+    }
+
+    for (const g of dustGrains) {
+      g.x += g.vx + Math.sin(floatT * 1.1 + g.phase) * g.drift;
+      g.y += g.vy + Math.cos(floatT * 0.9 + g.phase) * g.drift * 0.75;
+      g.phase += g.twinkle;
+
+      if (g.x < -24 || g.x > width + 24 || g.y < -24 || g.y > height + 24) {
+        respawnGrain(g);
+      }
+
+      drawDustGrain(g, layerA);
     }
   }
 
