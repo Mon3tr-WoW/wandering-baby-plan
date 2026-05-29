@@ -26,15 +26,16 @@ const INTRO = {
   colorFadeEnd: 1.6
 };
 
-/** 以 #b7b28a 为中心的星际尘埃色板 */
+/** 以 #b7b28a 为中心的星际尘埃色板（浅 → 深） */
 const DUST_PALETTE = [
+  [221, 216, 186],
+  [205, 200, 168],
   [183, 178, 138],
   [196, 191, 158],
-  [212, 207, 176],
   [168, 163, 128],
   [154, 149, 122],
   [138, 133, 108],
-  [201, 196, 165]
+  [122, 118, 98]
 ];
 
 function rand(min, max) {
@@ -46,23 +47,27 @@ function pickDustColor() {
 }
 
 function createDustParticle(x, y) {
-  const scale = rand(0.65, 1.45);
+  const scale = rand(0.72, 1.55);
   const [r, g, b] = pickDustColor();
-  const angle = rand(0, Math.PI);
+  const angle = rand(0, Math.PI * 2);
+  const kindRoll = Math.random();
+  const kind = kindRoll > 0.78 ? 'cluster' : kindRoll > 0.42 ? 'wisp' : 'grain';
+
   return {
     x,
     y,
-    vx: rand(-0.2, 0.2),
-    vy: rand(-0.32, 0.05),
-    len: rand(11, 34) * scale,
-    width: rand(1.6, 5.2) * scale,
+    vx: rand(-0.18, 0.18),
+    vy: rand(-0.28, 0.06),
+    len: rand(14, 42) * scale,
+    width: rand(2.2, 7.5) * scale,
     angle,
-    drift: rand(0.015, 0.04),
+    drift: rand(0.012, 0.032),
     phase: Math.random() * Math.PI * 2,
-    twinkle: rand(0.006, 0.018),
-    alpha: rand(0.14, 0.42),
+    twinkle: rand(0.005, 0.014),
+    alpha: rand(0.42, 0.88),
     rgb: [r, g, b],
-    strand: rand(0.35, 1)
+    kind,
+    seed: Math.random() * 100
   };
 }
 
@@ -100,11 +105,13 @@ function respawnDust(p) {
   const cellH = height / rows;
   const col = Math.floor(Math.random() * cols);
   const row = Math.floor(Math.random() * rows);
-  const next = createDustParticle(
-    (col + 0.12 + Math.random() * 0.76) * cellW,
-    (row + 0.12 + Math.random() * 0.76) * cellH
+  Object.assign(
+    p,
+    createDustParticle(
+      (col + 0.12 + Math.random() * 0.76) * cellW,
+      (row + 0.12 + Math.random() * 0.76) * cellH
+    )
   );
-  Object.assign(p, next);
 }
 
 function resize() {
@@ -143,70 +150,132 @@ function dustLayerAlpha() {
   return Math.min(1, t / INTRO.colorFadeEnd);
 }
 
-/** 绘制一缕写实星际尘埃：柔长椭羽 + 细纤维 + 微粒絮团 */
-function drawDustWisp(p, layerA) {
-  const flicker = 0.72 + Math.sin(p.phase) * 0.28;
+function rgba(rgb, a) {
+  const [r, g, b] = rgb;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/** 写实尘埃：主体柔羽 + 受光边 + 细纤维，避免“圆点”感 */
+function drawDustGrain(p, layerA) {
+  const flicker = 0.78 + Math.sin(p.phase) * 0.22;
   const a = p.alpha * flicker * layerA;
-  if (a < 0.02) return;
+  if (a < 0.04) return;
 
   const [r, g, b] = p.rgb;
-  const ca = a * 0.55;
   const len = p.len;
+  const w = p.width;
+  const hi = [
+    Math.min(255, r + 28),
+    Math.min(255, g + 26),
+    Math.min(255, b + 22)
+  ];
+  const lo = [
+    Math.max(0, r - 18),
+    Math.max(0, g - 18),
+    Math.max(0, b - 14)
+  ];
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle);
+
+  ctx.globalCompositeOperation = 'source-over';
+
+  const bodyGrad = ctx.createLinearGradient(-len * 0.5, 0, len * 0.5, 0);
+  bodyGrad.addColorStop(0, rgba(lo, 0));
+  bodyGrad.addColorStop(0.22, rgba(lo, a * 0.28));
+  bodyGrad.addColorStop(0.48, rgba([r, g, b], a * 0.62));
+  bodyGrad.addColorStop(0.68, rgba(hi, a * 0.48));
+  bodyGrad.addColorStop(1, rgba(lo, 0));
+
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, len * 0.5, w * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const hazeGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, len * 0.38);
+  hazeGrad.addColorStop(0, rgba(hi, a * 0.22));
+  hazeGrad.addColorStop(0.45, rgba([r, g, b], a * 0.14));
+  hazeGrad.addColorStop(1, rgba(lo, 0));
+  ctx.fillStyle = hazeGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, len * 0.34, w * 0.9, 0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = rgba(hi, a * 0.55);
+  ctx.lineWidth = Math.max(0.55, w * 0.14);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-len * 0.44, w * 0.06);
+  ctx.bezierCurveTo(
+    -len * 0.14, -w * 0.32,
+    len * 0.12, w * 0.26,
+    len * 0.4, -w * 0.02
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = rgba(lo, a * 0.35);
+  ctx.lineWidth = Math.max(0.35, w * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(-len * 0.3, -w * 0.12);
+  ctx.quadraticCurveTo(0, w * 0.18, len * 0.28, w * 0.08);
+  ctx.stroke();
+
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = rgba(hi, a * 0.18);
+  ctx.beginPath();
+  ctx.ellipse(len * 0.08, -w * 0.08, len * 0.12, w * 0.22, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawDustWisp(p, layerA) {
+  drawDustGrain(p, layerA);
+}
+
+function drawDustCluster(p, layerA) {
+  const flicker = 0.8 + Math.sin(p.phase) * 0.2;
+  const a = p.alpha * flicker * layerA * 0.85;
+  if (a < 0.04) return;
+
+  const [r, g, b] = p.rgb;
+  const len = p.len * 0.85;
   const w = p.width;
 
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(p.angle);
 
-  const bodyGrad = ctx.createLinearGradient(-len * 0.5, 0, len * 0.5, 0);
-  bodyGrad.addColorStop(0, `rgba(${r},${g},${b},0)`);
-  bodyGrad.addColorStop(0.28, `rgba(${r},${g},${b},${ca * 0.22})`);
-  bodyGrad.addColorStop(0.5, `rgba(${r},${g},${b},${ca * 0.48})`);
-  bodyGrad.addColorStop(0.72, `rgba(${r},${g},${b},${ca * 0.18})`);
-  bodyGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  for (let i = 0; i < 4; i++) {
+    const ox = Math.sin(p.seed + i * 1.7) * len * 0.22;
+    const oy = Math.cos(p.seed + i * 2.1) * w * 0.35;
+    const subLen = len * (0.35 + (i % 3) * 0.1);
+    const subW = w * (0.45 + (i % 2) * 0.18);
+    const subA = a * (0.55 + (i % 3) * 0.15);
+    const subAngle = (i - 1.5) * 0.28;
 
-  ctx.fillStyle = bodyGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, len * 0.48, w * 0.42, 0, 0, Math.PI * 2);
-  ctx.fill();
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.rotate(subAngle - p.angle);
 
-  const hazeGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, len * 0.32);
-  hazeGrad.addColorStop(0, `rgba(${r},${g},${b},${ca * 0.2})`);
-  hazeGrad.addColorStop(0.55, `rgba(${r},${g},${b},${ca * 0.08})`);
-  hazeGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = hazeGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, len * 0.28, w * 0.75, 0.15, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = `rgba(${r},${g},${b},${ca * 0.32})`;
-  ctx.lineWidth = Math.max(0.35, w * 0.12);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-len * 0.42, w * 0.08 * p.strand);
-  ctx.bezierCurveTo(
-    -len * 0.12, -w * 0.28,
-    len * 0.1, w * 0.22,
-    len * 0.38, -w * 0.04
-  );
-  ctx.stroke();
-
-  const fleckCount = 2 + Math.floor(p.strand * 2);
-  for (let i = 0; i < fleckCount; i++) {
-    const t = (i + 0.5) / fleckCount - 0.5;
-    const fx = t * len * 0.55 + Math.sin(p.phase * 2.7 + i * 1.9) * 1.15;
-    const fy = Math.cos(p.phase * 2.1 + i * 2.3) * w * 0.28;
-    const fr = (0.35 + (i % 3) * 0.22) * w * 0.22;
-    const fleckGrad = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr * 2.2);
-    fleckGrad.addColorStop(0, `rgba(${r},${g},${b},${ca * 0.35})`);
-    fleckGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = fleckGrad;
+    const grad = ctx.createLinearGradient(-subLen * 0.5, 0, subLen * 0.5, 0);
+    grad.addColorStop(0, rgba([r, g, b], 0));
+    grad.addColorStop(0.5, rgba([r, g, b], subA * 0.55));
+    grad.addColorStop(1, rgba([r, g, b], 0));
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.ellipse(fx, fy, fr * 1.6, fr, t * 0.6, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, subLen * 0.48, subW * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 
   ctx.restore();
+}
+
+function drawDust(p, layerA) {
+  if (p.kind === 'cluster') drawDustCluster(p, layerA);
+  else drawDustWisp(p, layerA);
 }
 
 let lastFrame = 0;
@@ -222,19 +291,20 @@ function tick(now) {
 
   const layerA = dustLayerAlpha();
   ctx.clearRect(0, 0, width, height);
+  ctx.globalCompositeOperation = 'source-over';
 
   if (enabled && layerA > 0.02) {
     for (const p of dustParticles) {
       p.x += p.vx + Math.sin(floatT + p.phase) * p.drift;
       p.y += p.vy + Math.cos(floatT * 0.82 + p.phase) * p.drift * 0.85;
       p.phase += p.twinkle;
-      p.angle += Math.sin(floatT * 0.4 + p.phase) * 0.0008;
+      p.angle += Math.sin(floatT * 0.4 + p.phase) * 0.0006;
 
-      if (p.x < -24 || p.x > width + 24 || p.y < -24 || p.y > height + 24) {
+      if (p.x < -32 || p.x > width + 32 || p.y < -32 || p.y > height + 32) {
         respawnDust(p);
       }
 
-      drawDustWisp(p, layerA);
+      drawDust(p, layerA);
     }
   }
 

@@ -332,6 +332,7 @@ body {
 
 body.start-screen-active .particle-canvas {
   z-index: 25;
+  opacity: 1;
 }
 
 /* 开始页：纯黑底层，避免与参考图黑底冲突 */
