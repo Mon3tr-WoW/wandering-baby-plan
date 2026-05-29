@@ -322,17 +322,30 @@ body {
   100% { transform: scale(1.4); opacity: 0; }
 }
 
-/* Canvas 星空 / 灰尘粒子（开始页置于彩色层之上） */
+/* 开始页星际尘埃 canvas（位于彩色层之上） */
 .particle-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 4;
+  display: block;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 
-body.start-screen-active .particle-canvas {
-  z-index: 25;
-  opacity: 1;
+.start-layer-dust {
+  z-index: 5;
+  pointer-events: none;
+}
+
+.start-layer-dust .particle-canvas {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: soft-light;
+  opacity: 0.92;
+}
+
+.start-layer-dust.disabled,
+.particle-canvas.disabled {
+  opacity: 0 !important;
+  visibility: hidden;
 }
 
 /* 开始页：纯黑底层，避免与参考图黑底冲突 */
@@ -611,11 +624,6 @@ body.start-intro-active.intro-ui #particles {
 
 .subtitle .sub-part.start-reveal-item {
   display: inline;
-}
-
-.particle-canvas.disabled {
-  opacity: 0;
-  visibility: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {

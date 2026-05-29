@@ -23,58 +23,57 @@ let introRafId = 0;
 let reducedMotion = false;
 
 const INTRO = {
-  colorFadeEnd: 1.6
+  colorFadeEnd: 1.2
 };
 
-/** 以 #b7b28a 为中心的星际尘埃色板（浅 → 深） */
-const DUST_PALETTE = [
-  [221, 216, 186],
-  [205, 200, 168],
-  [183, 178, 138],
-  [196, 191, 158],
-  [168, 163, 128],
-  [154, 149, 122],
-  [138, 133, 108],
-  [122, 118, 98]
-];
+/** 以 #b7b28a 为中心的色板：亮高光 → 主色 → 暗阴影 */
+const DUST_CORE = [183, 178, 138];
+const DUST_HI = [232, 227, 198];
+const DUST_LO = [92, 88, 72];
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function pickDustColor() {
-  return DUST_PALETTE[Math.floor(Math.random() * DUST_PALETTE.length)];
+function lerpRgb(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t)
+  ];
+}
+
+function pickDustTone() {
+  const t = Math.random();
+  if (t < 0.22) return lerpRgb(DUST_CORE, DUST_HI, rand(0.35, 1));
+  if (t > 0.82) return lerpRgb(DUST_CORE, DUST_LO, rand(0.25, 0.85));
+  return lerpRgb(DUST_CORE, DUST_HI, rand(0, 0.35));
 }
 
 function createDustParticle(x, y) {
-  const scale = rand(0.72, 1.55);
-  const [r, g, b] = pickDustColor();
-  const angle = rand(0, Math.PI * 2);
-  const kindRoll = Math.random();
-  const kind = kindRoll > 0.78 ? 'cluster' : kindRoll > 0.42 ? 'wisp' : 'grain';
-
+  const scale = rand(0.8, 1.65);
+  const rgb = pickDustTone();
   return {
     x,
     y,
-    vx: rand(-0.18, 0.18),
-    vy: rand(-0.28, 0.06),
-    len: rand(14, 42) * scale,
-    width: rand(2.2, 7.5) * scale,
-    angle,
-    drift: rand(0.012, 0.032),
+    vx: rand(-0.16, 0.16),
+    vy: rand(-0.24, 0.05),
+    len: rand(22, 58) * scale,
+    width: rand(2.8, 9) * scale,
+    angle: rand(0, Math.PI * 2),
+    drift: rand(0.01, 0.028),
     phase: Math.random() * Math.PI * 2,
-    twinkle: rand(0.005, 0.014),
-    alpha: rand(0.42, 0.88),
-    rgb: [r, g, b],
-    kind,
+    twinkle: rand(0.004, 0.012),
+    strength: rand(0.72, 1),
+    rgb,
     seed: Math.random() * 100
   };
 }
 
-/** 网格抖动：全屏均匀分布，避免灰尘扎堆 */
+/** 网格抖动：全屏均匀分布 */
 function buildDustField() {
   const area = width * height;
-  const count = Math.min(320, Math.max(140, Math.floor(area / 4200)));
+  const count = Math.min(280, Math.max(120, Math.floor(area / 5000)));
   const aspect = width / Math.max(height, 1);
   const cols = Math.max(10, Math.round(Math.sqrt(count * aspect)));
   const rows = Math.max(8, Math.ceil(count / cols));
@@ -85,16 +84,13 @@ function buildDustField() {
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       if (dustParticles.length >= count) break;
-      const jitterX = 0.1 + Math.random() * 0.8;
-      const jitterY = 0.1 + Math.random() * 0.8;
       dustParticles.push(
-        createDustParticle((col + jitterX) * cellW, (row + jitterY) * cellH)
+        createDustParticle(
+          (col + 0.12 + Math.random() * 0.76) * cellW,
+          (row + 0.12 + Math.random() * 0.76) * cellH
+        )
       );
     }
-  }
-
-  while (dustParticles.length < count) {
-    dustParticles.push(createDustParticle(Math.random() * width, Math.random() * height));
   }
 }
 
@@ -103,22 +99,26 @@ function respawnDust(p) {
   const rows = 8;
   const cellW = width / cols;
   const cellH = height / rows;
-  const col = Math.floor(Math.random() * cols);
-  const row = Math.floor(Math.random() * rows);
   Object.assign(
     p,
     createDustParticle(
-      (col + 0.12 + Math.random() * 0.76) * cellW,
-      (row + 0.12 + Math.random() * 0.76) * cellH
+      (Math.floor(Math.random() * cols) + 0.12 + Math.random() * 0.76) * cellW,
+      (Math.floor(Math.random() * rows) + 0.12 + Math.random() * 0.76) * cellH
     )
   );
 }
 
 function resize() {
   if (!canvas) return;
-  width = window.innerWidth;
-  height = window.innerHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const layer = canvas.parentElement;
+  width = layer?.clientWidth || window.innerWidth;
+  height = layer?.clientHeight || window.innerHeight;
+  if (width < 2 || height < 2) {
+    width = window.innerWidth;
+    height = window.innerHeight;
+  }
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
   canvas.style.width = `${width}px`;
@@ -147,33 +147,24 @@ function dustLayerAlpha() {
   if (!document.body.classList.contains('start-screen-active')) return 0;
   if (document.body.classList.contains('start-reveal-ready')) return 1;
   const t = getIntroTime();
-  return Math.min(1, t / INTRO.colorFadeEnd);
+  return Math.max(0.65, Math.min(1, t / INTRO.colorFadeEnd));
 }
 
 function rgba(rgb, a) {
-  const [r, g, b] = rgb;
-  return `rgba(${r},${g},${b},${a})`;
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
 }
 
-/** 写实尘埃：主体柔羽 + 受光边 + 细纤维，避免“圆点”感 */
-function drawDustGrain(p, layerA) {
-  const flicker = 0.78 + Math.sin(p.phase) * 0.22;
-  const a = p.alpha * flicker * layerA;
-  if (a < 0.04) return;
+/** 写实尘缕：暗边 + 主体 + 受光纤维（高对比，确保可见） */
+function drawDustStrand(p, layerA) {
+  const flicker = 0.82 + Math.sin(p.phase) * 0.18;
+  const a = p.strength * flicker * layerA;
+  if (a < 0.08) return;
 
   const [r, g, b] = p.rgb;
+  const hi = lerpRgb([r, g, b], DUST_HI, 0.55);
+  const lo = lerpRgb([r, g, b], DUST_LO, 0.65);
   const len = p.len;
   const w = p.width;
-  const hi = [
-    Math.min(255, r + 28),
-    Math.min(255, g + 26),
-    Math.min(255, b + 22)
-  ];
-  const lo = [
-    Math.max(0, r - 18),
-    Math.max(0, g - 18),
-    Math.max(0, b - 14)
-  ];
 
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -181,101 +172,57 @@ function drawDustGrain(p, layerA) {
 
   ctx.globalCompositeOperation = 'source-over';
 
-  const bodyGrad = ctx.createLinearGradient(-len * 0.5, 0, len * 0.5, 0);
-  bodyGrad.addColorStop(0, rgba(lo, 0));
-  bodyGrad.addColorStop(0.22, rgba(lo, a * 0.28));
-  bodyGrad.addColorStop(0.48, rgba([r, g, b], a * 0.62));
-  bodyGrad.addColorStop(0.68, rgba(hi, a * 0.48));
-  bodyGrad.addColorStop(1, rgba(lo, 0));
-
-  ctx.fillStyle = bodyGrad;
+  const halo = ctx.createLinearGradient(-len * 0.55, 0, len * 0.55, 0);
+  halo.addColorStop(0, rgba(lo, 0));
+  halo.addColorStop(0.18, rgba(lo, a * 0.42));
+  halo.addColorStop(0.5, rgba([r, g, b], a * 0.88));
+  halo.addColorStop(0.78, rgba(hi, a * 0.72));
+  halo.addColorStop(1, rgba(lo, 0));
+  ctx.fillStyle = halo;
   ctx.beginPath();
-  ctx.ellipse(0, 0, len * 0.5, w * 0.55, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, len * 0.52, w * 0.62, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  const hazeGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, len * 0.38);
-  hazeGrad.addColorStop(0, rgba(hi, a * 0.22));
-  hazeGrad.addColorStop(0.45, rgba([r, g, b], a * 0.14));
-  hazeGrad.addColorStop(1, rgba(lo, 0));
-  ctx.fillStyle = hazeGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, len * 0.34, w * 0.9, 0.12, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = rgba(hi, a * 0.55);
-  ctx.lineWidth = Math.max(0.55, w * 0.14);
+  ctx.strokeStyle = rgba(lo, a * 0.55);
+  ctx.lineWidth = Math.max(0.8, w * 0.22);
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(-len * 0.44, w * 0.06);
+  ctx.moveTo(-len * 0.46, w * 0.05);
   ctx.bezierCurveTo(
-    -len * 0.14, -w * 0.32,
-    len * 0.12, w * 0.26,
-    len * 0.4, -w * 0.02
+    -len * 0.15, -w * 0.34,
+    len * 0.14, w * 0.28,
+    len * 0.42, -w * 0.03
   );
   ctx.stroke();
 
-  ctx.strokeStyle = rgba(lo, a * 0.35);
-  ctx.lineWidth = Math.max(0.35, w * 0.08);
+  ctx.strokeStyle = rgba(hi, a * 0.92);
+  ctx.lineWidth = Math.max(0.45, w * 0.1);
   ctx.beginPath();
-  ctx.moveTo(-len * 0.3, -w * 0.12);
-  ctx.quadraticCurveTo(0, w * 0.18, len * 0.28, w * 0.08);
+  ctx.moveTo(-len * 0.38, -w * 0.06);
+  ctx.quadraticCurveTo(len * 0.02, w * 0.1, len * 0.36, w * 0.04);
   ctx.stroke();
 
   ctx.globalCompositeOperation = 'screen';
-  ctx.fillStyle = rgba(hi, a * 0.18);
+  ctx.strokeStyle = rgba(hi, a * 0.38);
+  ctx.lineWidth = Math.max(0.35, w * 0.06);
   ctx.beginPath();
-  ctx.ellipse(len * 0.08, -w * 0.08, len * 0.12, w * 0.22, -0.2, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(-len * 0.28, 0);
+  ctx.lineTo(len * 0.3, -w * 0.02);
+  ctx.stroke();
 
-  ctx.restore();
-}
-
-function drawDustWisp(p, layerA) {
-  drawDustGrain(p, layerA);
-}
-
-function drawDustCluster(p, layerA) {
-  const flicker = 0.8 + Math.sin(p.phase) * 0.2;
-  const a = p.alpha * flicker * layerA * 0.85;
-  if (a < 0.04) return;
-
-  const [r, g, b] = p.rgb;
-  const len = p.len * 0.85;
-  const w = p.width;
-
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.rotate(p.angle);
-
-  for (let i = 0; i < 4; i++) {
-    const ox = Math.sin(p.seed + i * 1.7) * len * 0.22;
-    const oy = Math.cos(p.seed + i * 2.1) * w * 0.35;
-    const subLen = len * (0.35 + (i % 3) * 0.1);
-    const subW = w * (0.45 + (i % 2) * 0.18);
-    const subA = a * (0.55 + (i % 3) * 0.15);
-    const subAngle = (i - 1.5) * 0.28;
-
-    ctx.save();
-    ctx.translate(ox, oy);
-    ctx.rotate(subAngle - p.angle);
-
-    const grad = ctx.createLinearGradient(-subLen * 0.5, 0, subLen * 0.5, 0);
-    grad.addColorStop(0, rgba([r, g, b], 0));
-    grad.addColorStop(0.5, rgba([r, g, b], subA * 0.55));
-    grad.addColorStop(1, rgba([r, g, b], 0));
-    ctx.fillStyle = grad;
+  const flecks = 3 + Math.floor(p.seed % 2);
+  for (let i = 0; i < flecks; i++) {
+    const t = (i + 0.5) / flecks - 0.5;
+    const fx = t * len * 0.62;
+    const fy = Math.sin(p.seed + i * 2.1) * w * 0.22;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = rgba(hi, a * (0.35 + i * 0.08));
     ctx.beginPath();
-    ctx.ellipse(0, 0, subLen * 0.48, subW * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(fx, fy, w * 0.18, w * 0.08, t * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
   }
 
   ctx.restore();
-}
-
-function drawDust(p, layerA) {
-  if (p.kind === 'cluster') drawDustCluster(p, layerA);
-  else drawDustWisp(p, layerA);
 }
 
 let lastFrame = 0;
@@ -287,24 +234,25 @@ function tick(now) {
   }
 
   lastFrame = now;
-  floatT += 0.01;
+  floatT += 0.011;
 
   const layerA = dustLayerAlpha();
   ctx.clearRect(0, 0, width, height);
   ctx.globalCompositeOperation = 'source-over';
 
-  if (enabled && layerA > 0.02) {
+  const onStart = document.body.classList.contains('start-screen-active');
+  if (onStart && layerA > 0.05) {
     for (const p of dustParticles) {
       p.x += p.vx + Math.sin(floatT + p.phase) * p.drift;
-      p.y += p.vy + Math.cos(floatT * 0.82 + p.phase) * p.drift * 0.85;
+      p.y += p.vy + Math.cos(floatT * 0.85 + p.phase) * p.drift * 0.8;
       p.phase += p.twinkle;
-      p.angle += Math.sin(floatT * 0.4 + p.phase) * 0.0006;
+      p.angle += Math.sin(floatT * 0.35 + p.phase) * 0.0005;
 
-      if (p.x < -32 || p.x > width + 32 || p.y < -32 || p.y > height + 32) {
+      if (p.x < -40 || p.x > width + 40 || p.y < -40 || p.y > height + 40) {
         respawnDust(p);
       }
 
-      drawDust(p, layerA);
+      drawDustStrand(p, layerA);
     }
   }
 
@@ -377,7 +325,6 @@ function finishIntroInstant() {
   hideUnlockHint();
 }
 
-/** 兜底：跳过入场动画，直接显示开始界面 */
 export function forceRevealStartScreen() {
   introRunning = false;
   document.body.classList.add('start-screen-active', 'start-intro-active', 'start-reveal-ready');
@@ -386,9 +333,12 @@ export function forceRevealStartScreen() {
 
 export function setStartCanvasActive(on) {
   canvasActive = !!on;
-  if (canvasActive && !rafId) {
-    lastFrame = 0;
-    rafId = requestAnimationFrame(tick);
+  if (canvasActive) {
+    resize();
+    if (!rafId) {
+      lastFrame = 0;
+      rafId = requestAnimationFrame(tick);
+    }
   }
 }
 
@@ -399,10 +349,12 @@ export function initStartFx(targetCanvas, audioEl) {
 
   if (!canvas) return;
   ctx = canvas.getContext('2d', { alpha: true });
-  resize();
   window.addEventListener('resize', resize);
   bindAudioUnlock();
   canvasActive = true;
+  resize();
+  requestAnimationFrame(resize);
+  setParticlesEnabled(enabled);
   if (!rafId) rafId = requestAnimationFrame(tick);
 }
 
@@ -443,5 +395,7 @@ export function setStartMusicVolume(v) {
 
 export function setParticlesEnabled(on) {
   enabled = !!on;
-  if (canvas) canvas.classList.toggle('disabled', !enabled);
+  if (!canvas) return;
+  canvas.classList.toggle('disabled', !enabled);
+  canvas.closest('.start-layer-dust')?.classList.toggle('disabled', !enabled);
 }

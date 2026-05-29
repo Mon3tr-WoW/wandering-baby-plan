@@ -725,6 +725,7 @@ async function init() {
     bindEvents();
     initStartSfx();
     initStartFx(els.particleCanvas, els.startMusic);
+    applySettings();
     setupStartScan();
 
     showScreen('start');
