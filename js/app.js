@@ -11,9 +11,9 @@ import {
   pauseStartMusic,
   setStartMusicVolume,
   setStartCanvasActive,
-  setupTitleChars,
   forceRevealStartScreen
 } from './start-fx.js';
+import { setupStartScan, resetStartScan } from './start-scan.js';
 import {
   initStartSfx,
   setSfxMasterVolume,
@@ -91,6 +91,7 @@ function showScreen(name) {
   } else {
     setStartCanvasActive(false);
     pauseStartMusic();
+    resetStartScan();
   }
 }
 
@@ -724,9 +725,7 @@ async function init() {
     bindEvents();
     initStartSfx();
     initStartFx(els.particleCanvas, els.startMusic);
-
-    const titleText = story.meta.title || '流浪婴儿计划';
-    setupTitleChars($('#title-main'), titleText);
+    setupStartScan();
 
     showScreen('start');
     document.body.classList.add('app-booted');
@@ -742,12 +741,12 @@ async function init() {
       })
       .catch((err) => console.warn('手势模块未加载。', err));
 
-    // 若入场动画 12 秒内未就绪，强制显示 UI（防黑屏兜底）
+    // 若入场动画 4 秒内未就绪，强制显示 UI（防黑屏兜底）
     setTimeout(() => {
-      if (!document.body.classList.contains('intro-ui')) {
+      if (!document.body.classList.contains('start-reveal-ready')) {
         forceRevealStartScreen();
       }
-    }, 12000);
+    }, 4000);
   } catch (err) {
     console.error('游戏初始化失败：', err);
     forceRevealStartScreen();

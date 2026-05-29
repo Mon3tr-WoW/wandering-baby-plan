@@ -1,5 +1,5 @@
 /**
- * 开始界面：全屏星空远景 + 参考图精灵 + 入场时间轴
+ * 开始界面：灰尘粒子 + 彩色层淡入 + 背景音乐
  */
 
 /** @type {HTMLCanvasElement | null} */
@@ -9,18 +9,13 @@ let ctx = null;
 /** @type {HTMLAudioElement | null} */
 let startMusic = null;
 
-let particles = [];
-let meteors = [];
-let deepStars = [];
-let brightStars = [];
+let dustParticles = [];
 let rafId = 0;
 let enabled = true;
 let canvasActive = false;
 let width = 0;
 let height = 0;
-let sceneAlpha = 0;
 let floatT = 0;
-let meteorCooldown = 0;
 let introRunning = false;
 let introClockStart = 0;
 let introAudioSynced = false;
@@ -28,74 +23,26 @@ let introRafId = 0;
 let reducedMotion = false;
 
 const INTRO = {
-  curtainEnd: 0.35,
-  bgEnd: 0.85,
-  circuitsEnd: 1.55,
-  sceneBegin: 1.7,
-  planetsRamp: 0.8,
-  shipDelay: 0.15,
-  shipRamp: 0.65,
-  titleAt: 5.0,
-  charStep: 0.1,
-  tagAt: 5.75,
-  subtitleCodeAt: 6.05,
-  subtitleNameAt: 6.28,
-  btnStartAt: 6.55,
-  btnContinueAt: 6.78,
-  btnLogAt: 6.95,
-  btnSettingsAt: 7.12,
-  footerAt: 7.28
+  colorFadeEnd: 1.6
 };
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function seeded(seed) {
-  const x = Math.sin(seed * 127.1 + seed * 311.7) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-function spawnParticle() {
-  const cyan = Math.random() > 0.38;
+function spawnDust() {
+  const warm = Math.random() > 0.42;
   return {
     x: Math.random() * width,
     y: Math.random() * height,
-    vx: rand(-0.14, 0.14),
-    vy: rand(-0.32, -0.05),
-    r: rand(0.35, cyan ? 1.6 : 1.1),
+    vx: rand(-0.22, 0.22),
+    vy: rand(-0.38, -0.04),
+    r: rand(0.4, warm ? 2.1 : 1.4),
     phase: Math.random() * Math.PI * 2,
-    twinkle: rand(0.01, 0.025),
-    alpha: rand(0.15, 0.7),
-    hue: cyan ? '180' : '270'
+    twinkle: rand(0.012, 0.028),
+    alpha: rand(0.12, warm ? 0.55 : 0.42),
+    warm
   };
-}
-
-function buildDeepSky() {
-  deepStars = [];
-  const count = Math.min(200, Math.floor((width * height) / 12000));
-  for (let i = 0; i < count; i++) {
-    deepStars.push({
-      x: seeded(i * 1.91) * width,
-      y: seeded(i * 2.47) * height,
-      r: rand(0.45, 1.05),
-      a: rand(0.25, 0.75),
-      ph: seeded(i * 4.3) * Math.PI * 2
-    });
-  }
-
-  brightStars = [];
-  for (let i = 0; i < 22; i++) {
-    brightStars.push({
-      x: seeded(i * 9.7) * width,
-      y: seeded(i * 6.9) * height,
-      r: rand(1.6, 3.2),
-      a: rand(0.75, 1),
-      ph: seeded(i * 3.8) * Math.PI * 2,
-      spikeLen: rand(10, 18),
-      twSpeed: rand(2.8, 5.5)
-    });
-  }
 }
 
 function resize() {
@@ -110,9 +57,8 @@ function resize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
 
-  const count = Math.min(130, Math.floor((width * height) / 9000));
-  particles = Array.from({ length: count }, spawnParticle);
-  buildDeepSky();
+  const count = Math.min(95, Math.floor((width * height) / 14000));
+  dustParticles = Array.from({ length: count }, spawnDust);
 }
 
 function getIntroTime() {
@@ -130,25 +76,85 @@ function hideUnlockHint() {
   document.getElementById('start-unlock-hint')?.classList.add('hidden');
 }
 
-function setSpriteAlphas(planetsA, shipA) {
-  const p = Math.max(0, Math.min(1, planetsA));
-  const s = Math.max(0, Math.min(1, shipA));
-  sceneAlpha = Math.max(p, s);
-  document.documentElement.style.setProperty('--start-planets-alpha', String(p));
-  document.documentElement.style.setProperty('--start-ship-alpha', String(s));
+function dustLayerAlpha() {
+  if (!document.body.classList.contains('start-screen-active')) return 0;
+  if (document.body.classList.contains('start-reveal-ready')) return 1;
+  const t = getIntroTime();
+  return Math.min(1, t / INTRO.colorFadeEnd);
 }
 
-function computeSpriteAlphas(t) {
-  let planetsA = 0;
-  let shipA = 0;
-  if (t >= INTRO.sceneBegin) {
-    planetsA = Math.min(1, (t - INTRO.sceneBegin) / INTRO.planetsRamp);
+function drawDustMote(x, y, r, alpha, warm) {
+  const a = alpha * dustLayerAlpha();
+  if (a < 0.02) return;
+
+  const core = warm ? `rgba(255, 210, 140, ${a})` : `rgba(180, 230, 255, ${a * 0.9})`;
+  const glow = warm ? `rgba(255, 160, 90, ${a * 0.25})` : `rgba(0, 240, 255, ${a * 0.2})`;
+
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.65, 0, Math.PI * 2);
+  ctx.fillStyle = core;
+  ctx.fill();
+}
+
+let lastFrame = 0;
+
+function tick(now) {
+  if (!canvasActive || !ctx) {
+    rafId = 0;
+    return;
   }
-  const shipStart = INTRO.sceneBegin + INTRO.planetsRamp + INTRO.shipDelay;
-  if (t >= shipStart) {
-    shipA = Math.min(1, (t - shipStart) / INTRO.shipRamp);
+
+  const dt = lastFrame ? now - lastFrame : 16;
+  lastFrame = now;
+  floatT += 0.012;
+
+  const layerA = dustLayerAlpha();
+  ctx.clearRect(0, 0, width, height);
+
+  if (enabled && layerA > 0.02) {
+    for (const p of dustParticles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.phase += p.twinkle;
+      const flicker = 0.45 + Math.sin(p.phase) * 0.55;
+
+      if (p.y < -12 || p.x < -12 || p.x > width + 12) {
+        p.x = Math.random() * width;
+        p.y = height + rand(0, 40);
+      }
+
+      drawDustMote(p.x, p.y, p.r, p.alpha * flicker, p.warm);
+    }
   }
-  return { planetsA, shipA };
+
+  rafId = requestAnimationFrame(tick);
+}
+
+function stopIntroLoop() {
+  introRunning = false;
+  if (introRafId) {
+    cancelAnimationFrame(introRafId);
+    introRafId = 0;
+  }
+}
+
+function introLoop() {
+  if (!introRunning) {
+    introRafId = 0;
+    return;
+  }
+  applyIntroTime(getIntroTime());
+  introRafId = requestAnimationFrame(introLoop);
+}
+
+function startIntroLoop() {
+  introRunning = true;
+  if (!introRafId) introRafId = requestAnimationFrame(introLoop);
 }
 
 async function tryPlayMusic() {
@@ -183,304 +189,23 @@ function bindAudioUnlock() {
   document.addEventListener('keydown', unlock);
 }
 
-function spawnMeteor() {
-  const angle = rand(0.68, 0.92) * Math.PI;
-  const speed = rand(9, 16);
-  meteors.push({
-    x: rand(0, width * 0.65),
-    y: rand(-120, height * 0.45),
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
-    len: rand(100, 200),
-    life: 0,
-    maxLife: rand(55, 95),
-    core: rand(2.8, 5.2)
-  });
-}
-
-/** 锐利星点：小光晕 + 清晰核心 */
-function drawSharpStar(x, y, r, alpha, layerA) {
-  const a = alpha * layerA;
-  if (a < 0.02) return;
-  ctx.beginPath();
-  ctx.arc(x, y, r * 1.15, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.22})`;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
-  ctx.fill();
-}
-
-function drawStarSpikes(x, y, r, len, alpha, layerA) {
-  const a = alpha * layerA;
-  if (a < 0.05) return;
-  ctx.save();
-  ctx.globalAlpha = a;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-  ctx.lineWidth = 1.1;
-  ctx.lineCap = 'round';
-  for (let i = 0; i < 4; i++) {
-    const ang = (i / 4) * Math.PI;
-    ctx.beginPath();
-    ctx.moveTo(x - Math.cos(ang) * len, y - Math.sin(ang) * len);
-    ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-/** 全画面均匀星野 + 分散远景光斑 */
-function drawDeepSky(t, layerA) {
-  if (layerA < 0.03) return;
-
-  ctx.save();
-
-  for (const st of deepStars) {
-    const tw = 0.65 + Math.sin(t * 1.4 + st.ph) * 0.35;
-    drawSharpStar(st.x, st.y, st.r, st.a * tw, layerA);
-  }
-
-  const smudges = [
-    [0.18, 0.22, 0.028], [0.82, 0.18, 0.025], [0.72, 0.78, 0.022],
-    [0.15, 0.72, 0.024], [0.5, 0.12, 0.02], [0.55, 0.88, 0.02]
-  ];
-  for (const [nx, ny, nr] of smudges) {
-    const sx = width * nx;
-    const sy = height * ny;
-    const rr = Math.min(width, height) * nr;
-    ctx.globalAlpha = layerA * 0.09;
-    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
-    g.addColorStop(0, 'rgba(255,255,255,0.35)');
-    g.addColorStop(1, 'transparent');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(sx, sy, rr, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  for (const st of brightStars) {
-    const tw = 0.35 + Math.sin(t * st.twSpeed + st.ph) * 0.65;
-    const flash = 0.5 + Math.pow(Math.max(0, Math.sin(t * st.twSpeed * 1.3 + st.ph * 2)), 3) * 0.5;
-    const a = st.a * (0.55 + tw * 0.45) * flash;
-    drawSharpStar(st.x, st.y, st.r, a, layerA);
-    drawStarSpikes(st.x, st.y, st.r, st.spikeLen, a * 0.95, layerA);
-  }
-
-  ctx.restore();
-}
-
-function drawMeteors(dt, layerA) {
-  if (layerA > 0.15) {
-    meteorCooldown -= dt;
-    if (meteorCooldown <= 0) {
-      spawnMeteor();
-      if (Math.random() > 0.35) spawnMeteor();
-      if (Math.random() > 0.7) spawnMeteor();
-      meteorCooldown = rand(700, 1400);
-    }
-  }
-
-  for (let i = meteors.length - 1; i >= 0; i--) {
-    const m = meteors[i];
-    m.life++;
-    m.x += m.vx;
-    m.y += m.vy;
-    if (m.life > m.maxLife || m.x > width + 150 || m.y > height + 150) {
-      meteors.splice(i, 1);
-      continue;
-    }
-
-    const fade = 1 - m.life / m.maxLife;
-    const spd = Math.hypot(m.vx, m.vy) || 1;
-    const tailX = m.x - (m.vx / spd) * m.len;
-    const tailY = m.y - (m.vy / spd) * m.len;
-    const a = layerA * fade;
-
-    ctx.save();
-    ctx.globalAlpha = a * 0.75;
-    const grad = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    grad.addColorStop(0.55, 'rgba(220, 240, 255, 0.55)');
-    grad.addColorStop(1, 'rgba(255, 255, 255, 1)');
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = Math.max(1.5, m.core * 0.45);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(tailX, tailY);
-    ctx.lineTo(m.x, m.y);
-    ctx.stroke();
-
-    ctx.globalAlpha = a;
-    ctx.beginPath();
-    ctx.arc(m.x, m.y, m.core * 1.1, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(m.x, m.y, m.core * 0.45, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-    ctx.fill();
-    ctx.restore();
-  }
-}
-
-let lastFrame = 0;
-
-function tick(now) {
-  if (!canvasActive || !ctx) {
-    rafId = 0;
-    return;
-  }
-
-  const dt = lastFrame ? now - lastFrame : 16;
-  lastFrame = now;
-  floatT += 0.014;
-
-  const skyA =
-    sceneAlpha > 0.01
-      ? sceneAlpha
-      : document.body.classList.contains('intro-circuits')
-        ? 0.2
-        : document.body.classList.contains('intro-bg')
-          ? 0.06
-          : 0;
-
-  ctx.clearRect(0, 0, width, height);
-  drawDeepSky(floatT, skyA);
-  drawMeteors(dt, Math.max(skyA, sceneAlpha * 0.9));
-
-  if (enabled) {
-    for (const p of particles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.phase += p.twinkle;
-      const flicker = 0.5 + Math.sin(p.phase) * 0.5;
-      if (p.y < -8 || p.x < -8 || p.x > width + 8) {
-        p.x = Math.random() * width;
-        p.y = height + rand(0, 30);
-      }
-      const a = p.alpha * flicker * Math.max(0.35, skyA);
-      drawSharpStar(p.x, p.y, p.r, a, 1);
-    }
-  }
-
-  rafId = requestAnimationFrame(tick);
-}
-
-function stopIntroLoop() {
-  introRunning = false;
-  if (introRafId) {
-    cancelAnimationFrame(introRafId);
-    introRafId = 0;
-  }
-}
-
-function introLoop() {
-  if (!introRunning) {
-    introRafId = 0;
-    return;
-  }
-  applyIntroTime(getIntroTime());
-  introRafId = requestAnimationFrame(introLoop);
-}
-
-function startIntroLoop() {
-  introRunning = true;
-  if (!introRafId) introRafId = requestAnimationFrame(introLoop);
-}
-
-function setBodyIntroClass(cls) {
-  document.body.classList.remove(
-    'intro-black',
-    'intro-bg',
-    'intro-circuits',
-    'intro-scene',
-    'intro-ui'
-  );
-  if (cls) document.body.classList.add(cls);
-}
-
-function revealElement(sel, visible) {
-  const el = document.querySelector(sel);
-  if (!el || el.classList.contains('hidden')) return;
-  el.classList.toggle('start-revealed', visible);
-}
-
-function revealTitleChars(t) {
-  document.querySelectorAll('#title-main .title-char').forEach((el, i) => {
-    el.classList.toggle('title-char-revealed', t >= INTRO.titleAt + i * INTRO.charStep);
-  });
-}
-
 function applyIntroTime(t) {
-  const curtain = document.getElementById('start-intro-curtain');
-  if (curtain) {
-    if (t < INTRO.curtainEnd) {
-      curtain.style.opacity = '1';
-      curtain.classList.remove('hidden');
-    } else if (t < INTRO.bgEnd) {
-      const p = (t - INTRO.curtainEnd) / (INTRO.bgEnd - INTRO.curtainEnd);
-      curtain.style.opacity = String(1 - p);
-    } else {
-      curtain.style.opacity = '0';
-      curtain.classList.add('hidden');
-    }
+  if (t >= INTRO.colorFadeEnd) {
+    document.body.classList.add('start-reveal-ready');
   }
-
-  if (t < INTRO.curtainEnd) setBodyIntroClass('intro-black');
-  else if (t < INTRO.bgEnd) setBodyIntroClass('intro-bg');
-  else if (t < INTRO.circuitsEnd) setBodyIntroClass('intro-circuits');
-  else if (t < INTRO.titleAt) setBodyIntroClass('intro-scene');
-  else setBodyIntroClass('intro-ui');
-
-  const { planetsA, shipA } = computeSpriteAlphas(t);
-  setSpriteAlphas(planetsA, shipA);
-
-  revealTitleChars(t);
-  revealElement('#screen-start .start-tag', t >= INTRO.tagAt);
-  revealElement('#screen-start .sub-code', t >= INTRO.subtitleCodeAt);
-  revealElement('#screen-start .sub-name', t >= INTRO.subtitleNameAt);
-  revealElement('#btn-start', t >= INTRO.btnStartAt);
-  revealElement('#btn-continue', t >= INTRO.btnContinueAt);
-  revealElement('#btn-open-log', t >= INTRO.btnLogAt);
-  revealElement('#btn-open-settings', t >= INTRO.btnSettingsAt);
-  revealElement('#screen-start .start-footer', t >= INTRO.footerAt);
 }
 
 function finishIntroInstant() {
   stopIntroLoop();
-  const curtain = document.getElementById('start-intro-curtain');
-  if (curtain) {
-    curtain.style.opacity = '0';
-    curtain.classList.add('hidden');
-  }
-  setBodyIntroClass('intro-ui');
-  setSpriteAlphas(1, 1);
+  document.body.classList.add('start-reveal-ready');
   hideUnlockHint();
-  document.querySelectorAll('#title-main .title-char').forEach((el) => {
-    el.classList.add('title-char-revealed');
-  });
-  document.querySelectorAll('#screen-start .start-reveal-item, #screen-start .sub-part').forEach((el) => {
-    if (!el.classList.contains('hidden')) el.classList.add('start-revealed');
-  });
 }
 
 /** 兜底：跳过入场动画，直接显示开始界面 */
 export function forceRevealStartScreen() {
   introRunning = false;
-  document.body.classList.add('start-screen-active', 'start-intro-active', 'intro-ui');
+  document.body.classList.add('start-screen-active', 'start-intro-active', 'start-reveal-ready');
   finishIntroInstant();
-}
-
-export function setupTitleChars(titleEl, text) {
-  if (!titleEl) return;
-  titleEl.textContent = '';
-  for (const ch of text) {
-    const span = document.createElement('span');
-    span.className = 'title-char';
-    span.textContent = ch;
-    titleEl.appendChild(span);
-  }
 }
 
 export function setStartCanvasActive(on) {
@@ -502,32 +227,17 @@ export function initStartFx(targetCanvas, audioEl) {
   window.addEventListener('resize', resize);
   bindAudioUnlock();
   canvasActive = true;
-  setSpriteAlphas(0, 0);
   if (!rafId) rafId = requestAnimationFrame(tick);
 }
 
 export async function playStartIntro() {
-  document.querySelectorAll('#screen-start .start-reveal-item').forEach((el) => {
-    el.classList.remove('start-revealed');
-  });
-  document.querySelectorAll('#title-main .title-char').forEach((el) => {
-    el.classList.remove('title-char-revealed');
-  });
+  document.body.classList.remove('start-reveal-ready');
 
-  setSpriteAlphas(0, 0);
-  meteors = [];
-  meteorCooldown = rand(400, 900);
   introClockStart = performance.now();
   introAudioSynced = false;
 
   document.body.classList.add('start-intro-active');
   setStartCanvasActive(true);
-
-  const curtain = document.getElementById('start-intro-curtain');
-  if (curtain) {
-    curtain.classList.remove('hidden');
-    curtain.style.opacity = '1';
-  }
 
   hideUnlockHint();
   applyIntroTime(0);

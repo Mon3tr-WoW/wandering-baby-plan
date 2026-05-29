@@ -322,12 +322,16 @@ body {
   100% { transform: scale(1.4); opacity: 0; }
 }
 
-/* Canvas 星空远景（位于参考图之下） */
+/* Canvas 星空 / 灰尘粒子（开始页置于彩色层之上） */
 .particle-canvas {
   position: fixed;
   inset: 0;
   z-index: 4;
   pointer-events: none;
+}
+
+body.start-screen-active .particle-canvas {
+  z-index: 25;
 }
 
 /* 开始页：纯黑底层，避免与参考图黑底冲突 */
@@ -371,13 +375,17 @@ body.start-screen-active.start-intro-active.intro-ui .nebula-bg {
   background: #000 !important;
 }
 
-/* 参考图精灵层：星球先入场，飞船后入场 */
+/* 参考图精灵层（旧版入场，新开始页已停用） */
 .start-scene-layer {
   position: fixed;
   inset: 0;
   z-index: 6;
   pointer-events: none;
   overflow: visible;
+}
+
+body.start-screen-active .start-scene-layer {
+  display: none !important;
 }
 
 body:not(.start-screen-active) .start-scene-layer {
@@ -645,11 +653,261 @@ body.start-intro-active.intro-ui #particles {
 
 /* 开始页 */
 #screen-start {
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
   text-align: center;
   overflow: hidden;
+}
+
+.start-composite {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.start-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.start-layer-black {
+  z-index: 1;
+  background: #000;
+}
+
+.start-layer-ui {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.start-layer-color {
+  z-index: 3;
+  pointer-events: auto;
+  transition: opacity 1.4s ease;
+}
+
+.start-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+body.start-intro-active:not(.start-reveal-ready) .start-layer-color {
+  opacity: 0;
+}
+
+body.start-reveal-ready .start-layer-color,
+body.start-intro-active.start-reveal-ready .start-layer-color {
+  opacity: 1;
+}
+
+/* 主菜单：叠在黑白底图上 */
+.start-layer-ui .start-menu {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: min(280px, 72vw);
+}
+
+.start-layer-ui .start-menu button {
+  pointer-events: none;
+}
+
+body.start-scan-active .start-layer-ui .start-menu button,
+body.start-scan-active .start-layer-ui .btn-llm-fab {
+  pointer-events: auto;
+}
+
+.start-layer-ui .btn-llm-fab {
+  pointer-events: none;
+}
+
+/* 光谱扫描 HUD */
+.start-scan-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 24;
+  pointer-events: none;
+}
+
+.start-scan-frame {
+  position: relative;
+  box-sizing: border-box;
+}
+
+.scan-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: rgba(0, 240, 255, 0.92);
+  border-style: solid;
+  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.75));
+}
+
+.scan-corner-tl {
+  left: 0;
+  top: 0;
+  border-width: 2px 0 0 2px;
+}
+
+.scan-corner-tr {
+  right: 0;
+  top: 0;
+  border-width: 2px 2px 0 0;
+}
+
+.scan-corner-bl {
+  left: 0;
+  bottom: 0;
+  border-width: 0 0 2px 2px;
+}
+
+.scan-corner-br {
+  right: 0;
+  bottom: 0;
+  border-width: 0 2px 2px 0;
+}
+
+.scan-line {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.55), transparent);
+  opacity: 0.65;
+  animation: scan-sweep 2.4s ease-in-out infinite;
+}
+
+.scan-line-top,
+.scan-line-bottom {
+  left: 8%;
+  width: 84%;
+  height: 1px;
+}
+
+.scan-line-top { top: 0; }
+.scan-line-bottom { bottom: 0; animation-delay: 1.2s; }
+
+.scan-line-left,
+.scan-line-right {
+  top: 8%;
+  height: 84%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(157, 78, 221, 0.55), transparent);
+}
+
+.scan-line-left { left: 0; animation-delay: 0.6s; }
+.scan-line-right { right: 0; animation-delay: 1.8s; }
+
+.scan-reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+}
+
+.scan-reticle::before,
+.scan-reticle::after {
+  content: "";
+  position: absolute;
+  background: rgba(0, 240, 255, 0.5);
+}
+
+.scan-reticle::before {
+  left: 50%;
+  top: -5px;
+  width: 1px;
+  height: 22px;
+  transform: translateX(-50%);
+}
+
+.scan-reticle::after {
+  top: 50%;
+  left: -5px;
+  height: 1px;
+  width: 22px;
+  transform: translateY(-50%);
+}
+
+.scan-label {
+  position: absolute;
+  left: 0;
+  top: -1.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.28em;
+  color: rgba(0, 240, 255, 0.82);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.45);
+  white-space: nowrap;
+}
+
+@keyframes scan-sweep {
+  0%, 100% { opacity: 0.25; transform: scaleX(0.85); }
+  50% { opacity: 0.9; transform: scaleX(1); }
+}
+
+.start-scan-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  z-index: 26;
+  margin: 0;
+  padding: 0.45rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: rgba(200, 230, 255, 0.55);
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(0, 240, 255, 0.18);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  transition: color 0.25s, border-color 0.25s, opacity 0.35s;
+}
+
+.start-scan-hint-key {
+  color: rgba(0, 240, 255, 0.85);
+}
+
+body.start-scan-active .start-scan-hint {
+  color: rgba(0, 240, 255, 0.88);
+  border-color: rgba(0, 240, 255, 0.45);
+}
+
+body.start-scan-active {
+  cursor: crosshair;
+}
+
+body.start-scan-active::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 42%,
+    rgba(0, 8, 18, 0.22) 100%
+  );
+}
+
+body:not(.start-screen-active) .start-scan-hint {
+  opacity: 0;
 }
 
 .start-deco {
@@ -1942,6 +2200,18 @@ body.app-booted .btn-gesture-fab {
 }
 
 @media (max-width: 640px) {
+  .start-layer-ui .start-menu {
+    top: 56%;
+    min-width: min(260px, 84vw);
+    gap: 0.7rem;
+  }
+
+  .start-scan-hint {
+    font-size: 0.56rem;
+    bottom: 0.75rem;
+    max-width: 92vw;
+  }
+
   .btn-gesture-fab {
     bottom: 4.8rem;
     font-size: 0.65rem;

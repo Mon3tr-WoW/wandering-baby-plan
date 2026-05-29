@@ -73,55 +73,56 @@
 
   <!-- 开始界面 -->
   <section id="screen-start" class="screen active">
-    <div class="start-deco start-deco-binary" aria-hidden="true">
-      <pre class="binary-stream">01001110 01100101 01101111
-11010011 10110001 11010000
-01100101 01110110 01101111
-01000001 01010010 01001011
-01110011 01100101 01100101
-01100100 00100000 01110011
-01110100 01100001 01110100
-01110101 01110011 00111010
-01001111 01001110 01001100
-01001001 01001110 01000101</pre>
-    </div>
-    <div class="start-deco start-deco-evolution" aria-hidden="true">
-      <div class="evo-tree">
-        <span class="evo-node evo-root"></span>
-        <span class="evo-line evo-line-a"></span>
-        <span class="evo-node evo-n1"></span>
-        <span class="evo-line evo-line-b"></span>
-        <span class="evo-node evo-n2"></span>
-        <span class="evo-line evo-line-c"></span>
-        <span class="evo-node evo-n3"></span>
-        <span class="evo-line evo-line-d"></span>
-        <span class="evo-node evo-n4"></span>
+    <div class="start-composite" id="start-composite">
+      <div class="start-layer start-layer-black" aria-hidden="true">
+        <img
+          class="start-bg-img"
+          src="referingPicture/Start_Black.png"
+          alt=""
+          decoding="async"
+          fetchpriority="high"
+        />
+      </div>
+
+      <div class="start-layer start-layer-ui">
+        <nav class="start-menu" aria-label="主菜单">
+          <button type="button" id="btn-start" class="btn-primary btn-breathe">开始漂流</button>
+          <button type="button" id="btn-continue" class="btn-secondary btn-breathe hidden">继续航行</button>
+          <button type="button" id="btn-open-log" class="btn-secondary btn-breathe">航行日志</button>
+          <button type="button" id="btn-open-settings" class="btn-secondary btn-breathe">系统设置</button>
+        </nav>
+        <button type="button" id="btn-gesture-test" class="btn-llm-fab btn-gesture-fab" title="测试：手势实时检测">手势实时检测</button>
+        <button type="button" id="btn-llm-test" class="btn-llm-fab" data-open-llm title="测试：与新人类对话">与新人类对话</button>
+      </div>
+
+      <div class="start-layer start-layer-color" id="start-color-layer">
+        <img
+          class="start-bg-img"
+          src="referingPicture/Start_Color.png"
+          alt=""
+          decoding="async"
+        />
+      </div>
+
+      <div id="start-scan-hud" class="start-scan-hud hidden" aria-hidden="true">
+        <div class="start-scan-frame">
+          <span class="scan-corner scan-corner-tl"></span>
+          <span class="scan-corner scan-corner-tr"></span>
+          <span class="scan-corner scan-corner-bl"></span>
+          <span class="scan-corner scan-corner-br"></span>
+          <span class="scan-line scan-line-top"></span>
+          <span class="scan-line scan-line-bottom"></span>
+          <span class="scan-line scan-line-left"></span>
+          <span class="scan-line scan-line-right"></span>
+          <span class="scan-reticle"></span>
+          <span class="scan-label">SPECTRAL SCAN</span>
+        </div>
       </div>
     </div>
 
-    <header class="start-header">
-      <p class="start-tag start-reveal-item">HUMAN EVOLUTION · CYBER VOYAGE</p>
-      <h1 class="title-glow">
-        <span class="title-inner">
-          <span id="title-main" aria-label="流浪婴儿计划"></span>
-          <span class="title-scanlines" aria-hidden="true"></span>
-        </span>
-      </h1>
-      <p class="subtitle">
-        <span class="sub-part sub-code start-reveal-item">代号：</span><span class="sub-part sub-name start-reveal-item">方舟</span>
-      </p>
-    </header>
-    <nav class="start-menu">
-      <button type="button" id="btn-start" class="btn-primary btn-breathe start-reveal-item">开始漂流</button>
-      <button type="button" id="btn-continue" class="btn-secondary btn-breathe hidden start-reveal-item">继续航行</button>
-      <button type="button" id="btn-open-log" class="btn-secondary btn-breathe start-reveal-item">航行日志</button>
-      <button type="button" id="btn-open-settings" class="btn-secondary btn-breathe start-reveal-item">系统设置</button>
-    </nav>
-    <footer class="start-footer start-reveal-item">
-      <span class="dim">v1 · 静态互动版</span>
-    </footer>
-    <button type="button" id="btn-gesture-test" class="btn-llm-fab btn-gesture-fab" title="测试：手势实时检测">手势实时检测</button>
-    <button type="button" id="btn-llm-test" class="btn-llm-fab" data-open-llm title="测试：与新人类对话">与新人类对话</button>
+    <p id="start-scan-hint" class="start-scan-hint" aria-live="polite">
+      <span class="start-scan-hint-key">右键</span> 切换光谱扫描 · 透视底层界面
+    </p>
   </section>
 
   <!-- 航行日志 -->
@@ -319,6 +320,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260527b"></script>
+  <script type="module" src="js/app.js?v=20260527c"></script>
 </body>
 </html>
