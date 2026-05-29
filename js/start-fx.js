@@ -30,19 +30,62 @@ function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function spawnDust() {
-  const warm = Math.random() > 0.42;
+function createDustParticle(x, y) {
+  const warm = Math.random() > 0.38;
+  const bright = Math.random() > 0.88;
   return {
-    x: Math.random() * width,
-    y: Math.random() * height,
-    vx: rand(-0.22, 0.22),
-    vy: rand(-0.38, -0.04),
-    r: rand(0.4, warm ? 2.1 : 1.4),
+    x,
+    y,
+    vx: rand(-0.28, 0.28),
+    vy: rand(-0.42, 0.08),
+    r: bright ? rand(1.8, 3.4) : rand(0.55, warm ? 2.6 : 2.0),
     phase: Math.random() * Math.PI * 2,
-    twinkle: rand(0.012, 0.028),
-    alpha: rand(0.12, warm ? 0.55 : 0.42),
-    warm
+    twinkle: rand(0.014, 0.034),
+    alpha: bright ? rand(0.55, 0.92) : rand(0.32, warm ? 0.78 : 0.68),
+    warm,
+    bright
   };
+}
+
+/** 网格抖动：全屏均匀分布，避免灰尘扎堆 */
+function buildDustField() {
+  const area = width * height;
+  const count = Math.min(320, Math.max(140, Math.floor(area / 4200)));
+  const aspect = width / Math.max(height, 1);
+  const cols = Math.max(10, Math.round(Math.sqrt(count * aspect)));
+  const rows = Math.max(8, Math.ceil(count / cols));
+  const cellW = width / cols;
+  const cellH = height / rows;
+
+  dustParticles = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (dustParticles.length >= count) break;
+      const jitterX = 0.1 + Math.random() * 0.8;
+      const jitterY = 0.1 + Math.random() * 0.8;
+      dustParticles.push(
+        createDustParticle((col + jitterX) * cellW, (row + jitterY) * cellH)
+      );
+    }
+  }
+
+  while (dustParticles.length < count) {
+    dustParticles.push(createDustParticle(Math.random() * width, Math.random() * height));
+  }
+}
+
+function respawnDust(p) {
+  const cols = 12;
+  const rows = 8;
+  const cellW = width / cols;
+  const cellH = height / rows;
+  const col = Math.floor(Math.random() * cols);
+  const row = Math.floor(Math.random() * rows);
+  p.x = (col + 0.12 + Math.random() * 0.76) * cellW;
+  p.y = (row + 0.12 + Math.random() * 0.76) * cellH;
+  p.vx = rand(-0.28, 0.28);
+  p.vy = rand(-0.42, 0.08);
+  p.phase = Math.random() * Math.PI * 2;
 }
 
 function resize() {
@@ -56,9 +99,7 @@ function resize() {
   canvas.style.height = `${height}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
-
-  const count = Math.min(95, Math.floor((width * height) / 14000));
-  dustParticles = Array.from({ length: count }, spawnDust);
+  buildDustField();
 }
 
 function getIntroTime() {
@@ -83,22 +124,37 @@ function dustLayerAlpha() {
   return Math.min(1, t / INTRO.colorFadeEnd);
 }
 
-function drawDustMote(x, y, r, alpha, warm) {
+function drawDustMote(x, y, r, alpha, warm, bright) {
   const a = alpha * dustLayerAlpha();
-  if (a < 0.02) return;
+  if (a < 0.03) return;
 
-  const core = warm ? `rgba(255, 210, 140, ${a})` : `rgba(180, 230, 255, ${a * 0.9})`;
-  const glow = warm ? `rgba(255, 160, 90, ${a * 0.25})` : `rgba(0, 240, 255, ${a * 0.2})`;
+  const glowScale = bright ? 3.4 : 2.8;
+  const coreA = bright ? a : a * 0.95;
+  const glowA = bright ? a * 0.42 : a * 0.34;
+
+  const core = warm
+    ? `rgba(255, 225, 175, ${coreA})`
+    : `rgba(210, 245, 255, ${coreA})`;
+  const glow = warm
+    ? `rgba(255, 175, 100, ${glowA})`
+    : `rgba(140, 230, 255, ${glowA})`;
 
   ctx.beginPath();
-  ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+  ctx.arc(x, y, r * glowScale, 0, Math.PI * 2);
   ctx.fillStyle = glow;
   ctx.fill();
 
   ctx.beginPath();
-  ctx.arc(x, y, r * 0.65, 0, Math.PI * 2);
+  ctx.arc(x, y, r * (bright ? 0.75 : 0.6), 0, Math.PI * 2);
   ctx.fillStyle = core;
   ctx.fill();
+
+  if (bright) {
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.28, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.85})`;
+    ctx.fill();
+  }
 }
 
 let lastFrame = 0;
@@ -109,7 +165,6 @@ function tick(now) {
     return;
   }
 
-  const dt = lastFrame ? now - lastFrame : 16;
   lastFrame = now;
   floatT += 0.012;
 
@@ -118,17 +173,16 @@ function tick(now) {
 
   if (enabled && layerA > 0.02) {
     for (const p of dustParticles) {
-      p.x += p.vx;
-      p.y += p.vy;
+      p.x += p.vx + Math.sin(floatT + p.phase) * 0.04;
+      p.y += p.vy + Math.cos(floatT * 0.85 + p.phase) * 0.03;
       p.phase += p.twinkle;
-      const flicker = 0.45 + Math.sin(p.phase) * 0.55;
+      const flicker = 0.5 + Math.sin(p.phase) * 0.5;
 
-      if (p.y < -12 || p.x < -12 || p.x > width + 12) {
-        p.x = Math.random() * width;
-        p.y = height + rand(0, 40);
+      if (p.x < -16 || p.x > width + 16 || p.y < -16 || p.y > height + 16) {
+        respawnDust(p);
       }
 
-      drawDustMote(p.x, p.y, p.r, p.alpha * flicker, p.warm);
+      drawDustMote(p.x, p.y, p.r, p.alpha * flicker, p.warm, p.bright);
     }
   }
 

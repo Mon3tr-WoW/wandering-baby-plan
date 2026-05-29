@@ -2,21 +2,24 @@
  * 开始界面 · 右键光谱扫描（透视彩色层，露出黑白底与按钮）
  */
 
-const SCAN_HALF_W = 118;
-const SCAN_HALF_H = 72;
-const SCAN_HALF_W_MOBILE = 92;
-const SCAN_HALF_H_MOBILE = 58;
+const SCAN_HALF_W = 236;
+const SCAN_HALF_H = 144;
+const SCAN_HALF_W_MOBILE = 184;
+const SCAN_HALF_H_MOBILE = 116;
+const MASK_FEATHER = 42;
 
 let scanActive = false;
 let pointerX = 0;
 let pointerY = 0;
 let bound = false;
+let maskSvg = null;
 
 const els = {
   colorLayer: null,
-  scanHud: null,
-  scanFrame: null,
-  hint: null
+  hint: null,
+  maskBg: null,
+  maskHole: null,
+  maskRoot: null
 };
 
 function clamp(v, min, max) {
@@ -34,9 +37,49 @@ function getScanHalfSize() {
 function bindDom() {
   if (els.colorLayer) return;
   els.colorLayer = document.getElementById('start-color-layer');
-  els.scanHud = document.getElementById('start-scan-hud');
-  els.scanFrame = els.scanHud?.querySelector('.start-scan-frame');
   els.hint = document.getElementById('start-scan-hint');
+}
+
+function ensureFeatherMask() {
+  if (maskSvg) return;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.style.position = 'absolute';
+  svg.style.overflow = 'hidden';
+  svg.innerHTML = `
+    <defs>
+      <filter id="start-scan-feather" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="${MASK_FEATHER}"/>
+      </filter>
+      <mask id="start-scan-mask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+        <rect id="start-scan-mask-bg" fill="white"/>
+        <rect id="start-scan-mask-hole" fill="black" filter="url(#start-scan-feather)"/>
+      </mask>
+    </defs>
+  `;
+  document.body.appendChild(svg);
+
+  maskSvg = svg;
+  els.maskRoot = svg.querySelector('#start-scan-mask');
+  els.maskBg = svg.querySelector('#start-scan-mask-bg');
+  els.maskHole = svg.querySelector('#start-scan-mask-hole');
+}
+
+function syncMaskViewport() {
+  if (!els.maskRoot || !els.maskBg) return;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  els.maskRoot.setAttribute('x', '0');
+  els.maskRoot.setAttribute('y', '0');
+  els.maskRoot.setAttribute('width', String(w));
+  els.maskRoot.setAttribute('height', String(h));
+  els.maskBg.setAttribute('x', '0');
+  els.maskBg.setAttribute('y', '0');
+  els.maskBg.setAttribute('width', String(w));
+  els.maskBg.setAttribute('height', String(h));
 }
 
 function isStartScreen() {
@@ -59,37 +102,28 @@ function getScanRect(x, y) {
   };
 }
 
-function applyScanClip(rect) {
+function applyScanMask(rect) {
   if (!els.colorLayer) return;
-  const { left, top, right, bottom } = rect;
-  els.colorLayer.style.clipPath = `polygon(
-    evenodd,
-    0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
-    ${left}px ${top}px,
-    ${right}px ${top}px,
-    ${right}px ${bottom}px,
-    ${left}px ${bottom}px,
-    ${left}px ${top}px
-  )`;
-}
+  ensureFeatherMask();
+  syncMaskViewport();
 
-function clearScanClip() {
-  if (!els.colorLayer) return;
+  const pad = MASK_FEATHER * 0.55;
+  els.maskHole.setAttribute('x', String(rect.left - pad));
+  els.maskHole.setAttribute('y', String(rect.top - pad));
+  els.maskHole.setAttribute('width', String(rect.width + pad * 2));
+  els.maskHole.setAttribute('height', String(rect.height + pad * 2));
+  els.maskHole.setAttribute('rx', '18');
+
+  els.colorLayer.style.mask = 'url(#start-scan-mask)';
+  els.colorLayer.style.webkitMask = 'url(#start-scan-mask)';
   els.colorLayer.style.clipPath = 'none';
 }
 
-function positionScanHud(rect) {
-  if (!els.scanHud || !els.scanFrame) return;
-  els.scanHud.classList.remove('hidden');
-  els.scanHud.setAttribute('aria-hidden', 'false');
-  els.scanHud.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
-  els.scanFrame.style.width = `${rect.width}px`;
-  els.scanFrame.style.height = `${rect.height}px`;
-}
-
-function hideScanHud() {
-  els.scanHud?.classList.add('hidden');
-  els.scanHud?.setAttribute('aria-hidden', 'true');
+function clearScanMask() {
+  if (!els.colorLayer) return;
+  els.colorLayer.style.mask = 'none';
+  els.colorLayer.style.webkitMask = 'none';
+  els.colorLayer.style.clipPath = 'none';
 }
 
 function setScanActive(on) {
@@ -98,12 +132,9 @@ function setScanActive(on) {
   els.hint?.classList.toggle('scan-mode-on', scanActive);
 
   if (scanActive) {
-    const rect = getScanRect(pointerX, pointerY);
-    applyScanClip(rect);
-    positionScanHud(rect);
+    applyScanMask(getScanRect(pointerX, pointerY));
   } else {
-    clearScanClip();
-    hideScanHud();
+    clearScanMask();
   }
 }
 
@@ -116,9 +147,7 @@ export function setStartScanPointer(x, y) {
   pointerX = x;
   pointerY = y;
   if (!scanActive) return;
-  const rect = getScanRect(x, y);
-  applyScanClip(rect);
-  positionScanHud(rect);
+  applyScanMask(getScanRect(x, y));
 }
 
 function onContextMenu(e) {
@@ -142,6 +171,11 @@ function onKeyDown(e) {
   if (scanActive) setScanActive(false);
 }
 
+function onResize() {
+  syncMaskViewport();
+  if (scanActive) applyScanMask(getScanRect(pointerX, pointerY));
+}
+
 function onScreenChange() {
   if (!isStartScreen() && scanActive) setScanActive(false);
 }
@@ -158,6 +192,7 @@ export function setupStartScan() {
   document.addEventListener('pointermove', onPointerMove, { passive: true });
   document.addEventListener('pointerdown', onPointerDown, { passive: true });
   document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('resize', onResize);
 
   const observer = new MutationObserver(onScreenChange);
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
