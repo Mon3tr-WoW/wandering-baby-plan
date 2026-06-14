@@ -18,7 +18,7 @@ python -m http.server 8080
 ## 部署到 GitHub Pages
 
 1. 仓库 **Settings → Pages → Source** 选 **GitHub Actions**（不要选 Deploy from a branch）。
-2. 剧情视频放在 **GitHub Releases**（标签 `videos-v1`），不占 LFS 配额。
+2. 剧情视频放在 **GitHub Releases**（标签 `videos-v4`，全 MP4），不占 LFS 配额。
 3. 推送代码后 Actions 自动部署。
 
 **完整步骤（Release 上传 + push + 验证）：** [docs/视频托管与发布指南.md](docs/视频托管与发布指南.md)

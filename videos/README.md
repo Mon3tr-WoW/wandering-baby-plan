@@ -19,6 +19,6 @@ python -m http.server 8080
 
 1. 修改或新增 `videos/` 内文件后运行 `python scripts/build-video-manifest.py`
 2. `git add data/video-manifest.json` 并 push
-3. 把**同名文件**上传到 GitHub Release 标签 `videos-v1`
+3. 把**同名 .mp4 文件**上传到 GitHub Release 标签 `videos-v4`
 
 详见 [docs/视频托管与发布指南.md](../docs/视频托管与发布指南.md)

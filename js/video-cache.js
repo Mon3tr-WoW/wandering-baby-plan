@@ -11,7 +11,7 @@ const resolvedUrls = new Map();
 /** @type {Map<string, HTMLVideoElement>} */
 const warmVideos = new Map();
 
-const EXT_ORDER = ['.mov', '.mp4', '.MOV', '.MP4'];
+const EXT_ORDER = ['.mp4', '.MP4', '.mov', '.MOV'];
 
 export function videoStemFromFile(filename) {
   return filename.replace(/\.(mp4|mov|MP4|MOV)$/i, '');
