@@ -1,21 +1,37 @@
 /**
  * 剧情视频托管地址
  *
- * 线上 Pages：从 GitHub Releases 拉取（免费，不占 Git LFS 配额）
- * 本地开发：自动使用项目内 videos/ 文件夹
- *
- * 修改 RELEASE_TAG 前，请先在 GitHub 创建同名 Release 并上传视频，详见 docs/视频托管与发布指南.md
+ * 线上 GitHub Pages：从 GitHub Releases 拉取
+ * 本地 / 局域网开发：使用项目内 videos/ 文件夹
  */
+
 const RELEASE_TAG = 'videos-v1';
 const REPO = 'Mon3tr-WoW/wandering-baby-plan';
-
 const RELEASE_BASE = `https://github.com/${REPO}/releases/download/${RELEASE_TAG}/`;
 
-function isLocalDev() {
-  if (typeof location === 'undefined') return false;
-  const h = location.hostname;
-  return h === 'localhost' || h === '127.0.0.1';
+/** 是否使用仓库内 videos/ 目录（而非 GitHub Release） */
+export function useLocalVideoFolder() {
+  if (typeof location === 'undefined') return true;
+  const { hostname, protocol } = location;
+
+  if (protocol === 'file:') return true;
+  if (hostname.endsWith('github.io')) return false;
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') return true;
+  if (/^192\.168\.\d+\.\d+$/.test(hostname)) return true;
+  if (/^10\.\d+\.\d+\.\d+$/.test(hostname)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)) return true;
+
+  return false;
 }
 
 /** 视频 URL 前缀，末尾带 / */
-export const VIDEO_BASE = isLocalDev() ? 'videos/' : RELEASE_BASE;
+export const VIDEO_BASE = useLocalVideoFolder() ? 'videos/' : RELEASE_BASE;
+
+export function getVideoSourceMode() {
+  return useLocalVideoFolder() ? 'local' : 'release';
+}
+
+/** 是否通过 file:// 打开（浏览器无法可靠加载本地视频） */
+export function isFileProtocol() {
+  return typeof location !== 'undefined' && location.protocol === 'file:';
+}

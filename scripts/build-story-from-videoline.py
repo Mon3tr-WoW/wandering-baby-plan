@@ -19,7 +19,9 @@ endings = {
 }
 
 
-def video_file(v):
+def video_file(v, manifest):
+    if manifest and v in manifest:
+        return manifest[v]
     mapping = {
         '4_1': '4_1.mov',
         '15_1': '15_1.MP4',
@@ -30,45 +32,55 @@ def video_file(v):
     return mapping.get(v, f'{v}.mp4')
 
 
-nodes = {}
-for row in data['rows']:
-    vid = row['video']
-    node = {
-        'map': row['map'],
-        'title': f"节点 {row['map']}",
-        'log': row['log'],
-        'video': video_file(vid)
+def main():
+    manifest_path = ROOT / 'data' / 'video-manifest.json'
+    manifest = {}
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+
+    nodes = {}
+    for row in data['rows']:
+        vid = row['video']
+        node = {
+            'map': row['map'],
+            'title': f"节点 {row['map']}",
+            'log': row['log'],
+            'video': video_file(vid, manifest)
+        }
+        if row.get('gestureChoice'):
+            node['gestureChoice'] = True
+        if row.get('autoNext'):
+            node['autoNext'] = row['autoNext']
+        if row.get('ending'):
+            node['ending'] = row['ending']
+            if row['ending'] == 'perfect':
+                node['flags'] = ['perfect', 'llm_hook', 'yolo_hook']
+        if row.get('choices'):
+            texts = row.get('choiceTexts') or row['choices']
+            node['choices'] = [
+                {'text': texts[i], 'next': row['choices'][i]}
+                for i in range(len(row['choices']))
+            ]
+            if node.get('gestureChoice'):
+                for c in node['choices']:
+                    if c['text'] == '警惕':
+                        c['gesture'] = 'gun'
+                    elif c['text'] == '握上':
+                        c['gesture'] = 'handshake'
+        nodes[vid] = node
+
+    story = {
+        'meta': {'title': '流浪婴儿计划', 'version': 2, 'startNode': '1'},
+        'endings': endings,
+        'nodes': nodes
     }
-    if row.get('gestureChoice'):
-        node['gestureChoice'] = True
-    if row.get('autoNext'):
-        node['autoNext'] = row['autoNext']
-    if row.get('ending'):
-        node['ending'] = row['ending']
-        if row['ending'] == 'perfect':
-            node['flags'] = ['perfect', 'llm_hook', 'yolo_hook']
-    if row.get('choices'):
-        texts = row.get('choiceTexts') or row['choices']
-        node['choices'] = [
-            {'text': texts[i], 'next': row['choices'][i]}
-            for i in range(len(row['choices']))
-        ]
-        if node.get('gestureChoice'):
-            for c in node['choices']:
-                if c['text'] == '警惕':
-                    c['gesture'] = 'gun'
-                elif c['text'] == '握上':
-                    c['gesture'] = 'handshake'
-    nodes[vid] = node
 
-story = {
-    'meta': {'title': '流浪婴儿计划', 'version': 2, 'startNode': '1'},
-    'endings': endings,
-    'nodes': nodes
-}
+    (ROOT / 'data/story.json').write_text(
+        json.dumps(story, ensure_ascii=False, indent=2) + '\n',
+        encoding='utf-8'
+    )
+    print(f'Wrote {len(nodes)} nodes to data/story.json')
 
-(ROOT / 'data/story.json').write_text(
-    json.dumps(story, ensure_ascii=False, indent=2) + '\n',
-    encoding='utf-8'
-)
-print(f'Wrote {len(nodes)} nodes to data/story.json')
+
+if __name__ == '__main__':
+    main()

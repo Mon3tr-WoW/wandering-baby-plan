@@ -1,152 +1,157 @@
-/**
- * 视频 URL 解析缓存 + 下一节点预加载
- */
-
-import { VIDEO_BASE } from './video-config.js';
-
-/** @type {Map<string, string>} stem -> 已验证可用的 URL */
-const resolvedUrls = new Map();
-/** @type {Map<string, HTMLVideoElement>} */
-const warmVideos = new Map();
-/** @type {Set<string>} */
-const warming = new Set();
-
-/** 本地 videos/ 以 .mov 为主，优先尝试 */
-const EXT_ORDER = ['.mov', '.mp4', '.MOV', '.MP4'];
-
-export function videoStemFromFile(filename) {
-  return filename.replace(/\.(mp4|mov|MP4|MOV)$/i, '');
-}
-
-export function buildVideoCandidates(stem) {
-  return EXT_ORDER.map((ext) => VIDEO_BASE + stem + ext);
-}
-
-function isLocalDev() {
-  if (typeof location === 'undefined') return false;
-  const h = location.hostname;
-  return h === 'localhost' || h === '127.0.0.1';
-}
-
-async function probeUrl(url) {
-  try {
-    const res = await fetch(url, { method: 'HEAD' });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * 解析可用视频 URL（HEAD 探测，避免 .mp4/.mov 错配导致无法播放）
- */
-export async function resolveVideoUrl(stem) {
-  const cached = resolvedUrls.get(stem);
-  if (cached && (await probeUrl(cached))) return cached;
-  if (cached) resolvedUrls.delete(stem);
-
-  const candidates = buildVideoCandidates(stem);
-  if (isLocalDev()) {
-    const checks = await Promise.all(candidates.map((url) => probeUrl(url)));
-    const hit = candidates.find((_, i) => checks[i]);
-    if (hit) {
-      resolvedUrls.set(stem, hit);
-      return hit;
-    }
-  } else {
-    for (const url of candidates) {
-      if (await probeUrl(url)) {
-        resolvedUrls.set(stem, url);
-        return url;
-      }
-    }
-  }
-
-  const fallback = candidates[0];
-  resolvedUrls.set(stem, fallback);
-  return fallback;
-}
-
-/** @deprecated 使用 resolveVideoUrl */
-export async function getVideoUrl(stem) {
-  return resolveVideoUrl(stem);
-}
-
-export function rememberVideoUrl(stem, url) {
-  if (stem && url) resolvedUrls.set(stem, url);
-}
-
-export function invalidateVideoUrl(stem) {
-  resolvedUrls.delete(stem);
-  const warm = warmVideos.get(stem);
-  if (warm) {
-    warm.removeAttribute('src');
-    warm.load();
-    warmVideos.delete(stem);
-  }
-}
-
-/** 后台预热：hidden video 元素 */
-export function warmVideo(stem, url) {
-  if (!stem || !url || warmVideos.has(stem) || warming.has(stem)) return;
-  warming.add(stem);
-
-  const v = document.createElement('video');
-  v.preload = 'auto';
-  v.muted = true;
-  v.playsInline = true;
-  v.style.display = 'none';
-  v.src = url;
-  v.addEventListener(
-    'loadeddata',
-    () => {
-      rememberVideoUrl(stem, url);
-      warmVideos.set(stem, v);
-      warming.delete(stem);
-    },
-    { once: true }
-  );
-  v.addEventListener(
-    'error',
-    () => {
-      warming.delete(stem);
-      v.remove();
-    },
-    { once: true }
-  );
-  document.body.appendChild(v);
-  v.load();
-}
-
-export async function prefetchStoryBranches(node, nodeById) {
-  if (!node) return;
-  const stems = new Set();
-
-  if (node.autoNext) {
-    const n = nodeById(node.autoNext);
-    if (n?.video) stems.add(videoStemFromFile(n.video));
-  }
-
-  for (const c of node.choices || []) {
-    const n = nodeById(c.next);
-    if (n?.video) stems.add(videoStemFromFile(n.video));
-  }
-
-  for (const stem of stems) {
-    resolveVideoUrl(stem)
-      .then((url) => warmVideo(stem, url))
-      .catch(() => {});
-  }
-}
-
-export function takeWarmVideo(stem) {
-  return warmVideos.get(stem) || null;
-}
-
-export function clearWarmVideo(stem) {
-  const v = warmVideos.get(stem);
-  if (v) {
-    v.remove();
-    warmVideos.delete(stem);
-  }
-}
+/**
+ * 视频 URL 解析：manifest 精确映射 + 扩展名回退 + 预热
+ */
+
+import { VIDEO_BASE, useLocalVideoFolder, getVideoSourceMode } from './video-config.js';
+
+/** @type {Record<string, string> | null} stem -> filename */
+let manifest = null;
+/** @type {Map<string, string>} */
+const resolvedUrls = new Map();
+/** @type {Map<string, HTMLVideoElement>} */
+const warmVideos = new Map();
+
+const EXT_ORDER = ['.mov', '.mp4', '.MOV', '.MP4'];
+
+export function videoStemFromFile(filename) {
+  return filename.replace(/\.(mp4|mov|MP4|MOV)$/i, '');
+}
+
+function videoUrlForFilename(filename) {
+  return VIDEO_BASE + filename;
+}
+
+/**
+ * manifest 有条目时只返回精确文件名，避免误试不存在的 .mp4
+ */
+export function buildVideoCandidates(stem) {
+  if (manifest?.[stem]) {
+    return [videoUrlForFilename(manifest[stem])];
+  }
+  const names = new Set();
+  for (const ext of EXT_ORDER) names.add(stem + ext);
+  return [...names].map((name) => videoUrlForFilename(name));
+}
+
+export async function loadVideoManifest() {
+  try {
+    const res = await fetch('data/video-manifest.json', { cache: 'no-cache' });
+    if (!res.ok) {
+      console.warn('[Video] video-manifest.json HTTP', res.status);
+      return;
+    }
+    manifest = await res.json();
+    console.info('[Video] manifest 已加载', Object.keys(manifest).length, '条');
+  } catch (err) {
+    console.warn('[Video] video-manifest.json 未加载，将使用扩展名回退。', err);
+  }
+}
+
+export function isVideoManifestLoaded() {
+  return manifest !== null;
+}
+
+export function getVideoManifestEntry(stem) {
+  return manifest?.[stem] ?? null;
+}
+
+async function probeUrl(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 解析可用视频 URL
+ * - manifest 优先（本地与 Release 均信任清单）
+ * - 本地无 manifest 时用 HEAD 探测
+ * - Release 无 manifest 时用扩展名顺序首项
+ */
+export async function resolveVideoUrl(stem) {
+  const cached = resolvedUrls.get(stem);
+  if (cached) return cached;
+
+  if (manifest?.[stem]) {
+    const url = videoUrlForFilename(manifest[stem]);
+    resolvedUrls.set(stem, url);
+    return url;
+  }
+
+  const candidates = buildVideoCandidates(stem);
+
+  if (useLocalVideoFolder()) {
+    for (const url of candidates) {
+      if (await probeUrl(url)) {
+        resolvedUrls.set(stem, url);
+        return url;
+      }
+    }
+  }
+
+  const fallback = candidates[0];
+  if (fallback) resolvedUrls.set(stem, fallback);
+  return fallback;
+}
+
+export function rememberVideoUrl(stem, url) {
+  if (stem && url) resolvedUrls.set(stem, url);
+}
+
+export function invalidateVideoUrl(stem) {
+  resolvedUrls.delete(stem);
+  const warm = warmVideos.get(stem);
+  if (warm) {
+    warm.remove();
+    warmVideos.delete(stem);
+  }
+}
+
+export function warmVideo(stem, url) {
+  if (!stem || !url || warmVideos.has(stem)) return;
+
+  const v = document.createElement('video');
+  v.preload = 'auto';
+  v.muted = true;
+  v.playsInline = true;
+  v.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none';
+  v.src = url;
+  v.addEventListener('loadeddata', () => rememberVideoUrl(stem, url), { once: true });
+  v.addEventListener('error', () => v.remove(), { once: true });
+  document.body.appendChild(v);
+  warmVideos.set(stem, v);
+  v.load();
+}
+
+export async function prefetchStoryBranches(node, nodeById) {
+  if (!node) return;
+  const stems = new Set();
+
+  if (node.autoNext) {
+    const n = nodeById(node.autoNext);
+    if (n?.video) stems.add(videoStemFromFile(n.video));
+  }
+  for (const c of node.choices || []) {
+    const n = nodeById(c.next);
+    if (n?.video) stems.add(videoStemFromFile(n.video));
+  }
+
+  for (const stem of stems) {
+    resolveVideoUrl(stem)
+      .then((url) => warmVideo(stem, url))
+      .catch(() => {});
+  }
+}
+
+export function getVideoDebugInfo(stem) {
+  return {
+    mode: getVideoSourceMode(),
+    base: VIDEO_BASE,
+    manifestLoaded: isVideoManifestLoaded(),
+    manifest: manifest?.[stem] ?? null,
+    candidates: buildVideoCandidates(stem)
+  };
+}
+

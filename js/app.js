@@ -26,8 +26,12 @@ import {
   rememberVideoUrl,
   invalidateVideoUrl,
   prefetchStoryBranches,
-  warmVideo
+  warmVideo,
+  loadVideoManifest,
+  getVideoDebugInfo,
+  getVideoManifestEntry
 } from './video-cache.js';
+import { isFileProtocol, getVideoSourceMode } from './video-config.js';
 import {
   loadProxyUrlOverride,
   saveProxyUrlOverride,
@@ -322,33 +326,41 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function waitForMainVideoReady(video, timeoutMs = 20000) {
-  if (video.readyState >= 2) return;
+async function waitForMainVideoReady(video, timeoutMs = 120000) {
+  if (video.readyState >= 3) return;
 
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error('视频加载超时'));
+      reject(new Error('视频加载超时（文件较大时请稍候或检查网络）'));
     }, timeoutMs);
 
     const onReady = () => {
-      cleanup();
-      resolve();
+      if (video.readyState >= 2) {
+        cleanup();
+        resolve();
+      }
     };
     const onError = () => {
       cleanup();
-      reject(new Error('视频解码失败'));
+      const code = video.error?.code ?? '?';
+      reject(new Error(`视频解码失败 (code ${code})`));
     };
     const cleanup = () => {
       clearTimeout(timer);
+      video.removeEventListener('loadedmetadata', onReady);
       video.removeEventListener('loadeddata', onReady);
       video.removeEventListener('canplay', onReady);
+      video.removeEventListener('progress', onReady);
       video.removeEventListener('error', onError);
     };
 
+    video.addEventListener('loadedmetadata', onReady);
     video.addEventListener('loadeddata', onReady);
     video.addEventListener('canplay', onReady);
+    video.addEventListener('progress', onReady);
     video.addEventListener('error', onError);
+    onReady();
   });
 }
 
@@ -370,25 +382,39 @@ async function tryPlayMainVideo() {
 async function loadNodeVideo(node, autoplay = true) {
   if (!els.video || !node) return;
 
+  if (isFileProtocol()) {
+    if (els.shipLog) {
+      els.shipLog.textContent =
+        '信号丢失 · 不能用 file:// 打开。请在项目根目录运行 python -m http.server 8080，再访问 http://localhost:8080';
+    }
+    return;
+  }
+
   const loadToken = ++videoLoadToken;
   hideChoices();
   setVideoLoading(true);
 
   const stem = videoStem(node);
-  const candidates = videoCandidates(node);
+  let candidates = buildVideoCandidates(stem);
+
+  // 无 manifest 映射时，本地先用 HEAD 解析一次
+  if (!getVideoManifestEntry(stem) && getVideoSourceMode() === 'local') {
+    try {
+      const resolved = await resolveVideoUrl(stem);
+      if (resolved) candidates = [resolved, ...candidates.filter((u) => u !== resolved)];
+    } catch {
+      /* 保留原候选列表 */
+    }
+  }
+
   let lastErr = null;
 
-  for (let i = 0; i < candidates.length; i++) {
+  for (const url of candidates) {
     if (loadToken !== videoLoadToken) return;
-
-    const url = i === 0 ? await resolveVideoUrl(stem) : candidates[i];
 
     try {
       els.video.onerror = null;
       els.video.pause();
-      els.video.removeAttribute('src');
-      els.video.load();
-
       els.video.src = url;
       els.video.load();
 
@@ -407,14 +433,21 @@ async function loadNodeVideo(node, autoplay = true) {
     } catch (err) {
       lastErr = err;
       invalidateVideoUrl(stem);
-      console.warn(`视频候选失败 (${url}):`, err?.message || err);
+      console.warn(`[Video] 候选失败 ${url}:`, err?.message || err);
     }
   }
 
   setVideoLoading(false);
-  console.error('所有视频候选均失败:', stem, lastErr);
+  const dbg = getVideoDebugInfo(stem);
+  console.error('[Video] 全部候选失败', { stem, nodeVideo: node.video, ...dbg, lastErr });
+  const hintFile = dbg.manifest || `${stem}.mov / ${stem}.mp4`;
   if (els.shipLog) {
-    els.shipLog.textContent = `信号丢失 · 无法加载视频「${stem}」。请确认 videos/ 或 Release 中已有该文件。`;
+    els.shipLog.textContent =
+      `信号丢失 · 无法加载「${stem}」。` +
+      `模式：${dbg.mode} · 文件：${hintFile}。` +
+      (dbg.mode === 'local'
+        ? '请用 http://localhost:8080 打开，并确认 videos/ 内有该文件。'
+        : '请确认 GitHub Release（videos-v1）已上传该视频，并重新部署 Pages。');
   }
 }
 
@@ -755,10 +788,17 @@ function bindEvents() {
 async function init() {
   try {
     await loadStory();
+    await loadVideoManifest();
   } catch (err) {
     alert('加载剧情数据失败：' + err.message);
     forceRevealStartScreen();
     return;
+  }
+
+  if (isFileProtocol()) {
+    console.error(
+      '[Video] 检测到 file:// 协议。请运行: python -m http.server 8080 → http://localhost:8080'
+    );
   }
 
   const startNode = story.meta.startNode;
