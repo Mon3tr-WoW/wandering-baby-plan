@@ -326,46 +326,102 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function waitForMainVideoReady(video, timeoutMs = 120000) {
-  if (video.readyState >= 3) return;
+async function waitForMainVideoReady(video, loadToken, timeoutMs = 180000) {
+  if (loadToken !== videoLoadToken) throw new Error('aborted');
 
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (ok, err) => {
+      if (settled) return;
+      settled = true;
       cleanup();
-      reject(new Error('视频加载超时（文件较大时请稍候或检查网络）'));
-    }, timeoutMs);
+      if (ok) resolve();
+      else reject(err || new Error('视频加载失败'));
+    };
 
-    const onReady = () => {
-      if (video.readyState >= 2) {
-        cleanup();
-        resolve();
+    const tryPlay = () => {
+      if (video.paused && !video.ended) {
+        video.play().catch(() => {});
       }
     };
-    const onError = () => {
-      cleanup();
-      const code = video.error?.code ?? '?';
-      reject(new Error(`视频解码失败 (code ${code})`));
+
+    const onMeta = () => {
+      setVideoLoading(false);
+      tryPlay();
     };
+
+    const onPlaying = () => {
+      setVideoLoading(false);
+      setVideoBuffering(false);
+      settle(true);
+    };
+
+    const onError = () => {
+      const code = video.error?.code ?? '?';
+      settle(false, new Error(`视频解码失败 (code ${code})`));
+    };
+
+    const progressTick = setInterval(() => {
+      if (loadToken !== videoLoadToken) {
+        settle(false, new Error('aborted'));
+        return;
+      }
+      updateVideoBufferHint(video);
+      if (video.readyState >= 1) setVideoLoading(false);
+      tryPlay();
+    }, 600);
+
+    const timer = setTimeout(() => {
+      if (video.readyState >= 1 || video.networkState === HTMLMediaElement.NETWORK_LOADING) {
+        setVideoLoading(false);
+        tryPlay();
+        settle(true);
+      } else {
+        settle(false, new Error('视频加载超时（首段视频较大，请稍候或检查网络）'));
+      }
+    }, timeoutMs);
+
     const cleanup = () => {
       clearTimeout(timer);
-      video.removeEventListener('loadedmetadata', onReady);
-      video.removeEventListener('loadeddata', onReady);
-      video.removeEventListener('canplay', onReady);
-      video.removeEventListener('progress', onReady);
+      clearInterval(progressTick);
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('canplay', onMeta);
+      video.removeEventListener('playing', onPlaying);
       video.removeEventListener('error', onError);
     };
 
-    video.addEventListener('loadedmetadata', onReady);
-    video.addEventListener('loadeddata', onReady);
-    video.addEventListener('canplay', onReady);
-    video.addEventListener('progress', onReady);
-    video.addEventListener('error', onError);
-    onReady();
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('canplay', onMeta);
+    video.addEventListener('playing', onPlaying, { once: true });
+    video.addEventListener('error', onError, { once: true });
+
+    tryPlay();
+    updateVideoBufferHint(video);
+    if (video.readyState >= 1) onMeta();
   });
+}
+
+function setVideoBuffering(on) {
+  els.videoWrap?.classList.toggle('video-buffering', on);
+}
+
+function updateVideoBufferHint(video) {
+  if (!els.videoWrap?.classList.contains('video-loading')) return;
+  const dur = video.duration;
+  if (!dur || !Number.isFinite(dur)) return;
+  let bufferedEnd = 0;
+  for (let i = 0; i < video.buffered.length; i++) {
+    bufferedEnd = Math.max(bufferedEnd, video.buffered.end(i));
+  }
+  const pct = Math.min(99, Math.round((bufferedEnd / dur) * 100));
+  els.videoWrap?.style.setProperty('--video-load-pct', `${pct}%`);
 }
 
 function setVideoLoading(on) {
   els.videoWrap?.classList.toggle('video-loading', on);
+  if (!on) {
+    els.videoWrap?.style.setProperty('--video-load-pct', '0%');
+  }
 }
 
 async function tryPlayMainVideo() {
@@ -418,7 +474,7 @@ async function loadNodeVideo(node, autoplay = true) {
       els.video.src = url;
       els.video.load();
 
-      await waitForMainVideoReady(els.video);
+      await waitForMainVideoReady(els.video, loadToken);
       if (loadToken !== videoLoadToken) return;
 
       rememberVideoUrl(stem, url);
@@ -744,6 +800,14 @@ function bindEvents() {
   });
 
   els.video?.addEventListener('ended', onVideoEnded);
+
+  els.video?.addEventListener('waiting', () => {
+    if (!els.videoWrap?.classList.contains('video-loading')) {
+      setVideoBuffering(true);
+    }
+  });
+  els.video?.addEventListener('playing', () => setVideoBuffering(false));
+  els.video?.addEventListener('canplay', () => setVideoBuffering(false));
 
   els.video?.addEventListener('timeupdate', () => {
     const node = nodeById(save?.currentNodeId);

@@ -22,9 +22,12 @@ function videoUrlForFilename(filename) {
 }
 
 /**
- * manifest 优先，再按扩展名回退（兼容 Release 尚未同步重命名的情况）
+ * manifest 优先；线上 Release 有映射时只试一个 URL，避免错试 + 重复超时
  */
 export function buildVideoCandidates(stem) {
+  if (manifest?.[stem] && !useLocalVideoFolder()) {
+    return [videoUrlForFilename(manifest[stem])];
+  }
   const names = new Set();
   if (manifest?.[stem]) names.add(manifest[stem]);
   for (const ext of EXT_ORDER) names.add(stem + ext);
@@ -108,6 +111,8 @@ export function invalidateVideoUrl(stem) {
 }
 
 export function warmVideo(stem, url) {
+  // 线上 Release 体积大，预热会与主播放器抢带宽，仅本地开发启用
+  if (!useLocalVideoFolder()) return;
   if (!stem || !url || warmVideos.has(stem)) return;
 
   const v = document.createElement('video');
@@ -124,6 +129,7 @@ export function warmVideo(stem, url) {
 }
 
 export async function prefetchStoryBranches(node, nodeById) {
+  if (!useLocalVideoFolder()) return;
   if (!node) return;
   const stems = new Set();
 
@@ -152,4 +158,4 @@ export function getVideoDebugInfo(stem) {
     candidates: buildVideoCandidates(stem)
   };
 }
-
+
