@@ -446,7 +446,7 @@ async function loadNodeVideo(node, autoplay = true) {
       `信号丢失 · 无法加载「${stem}」。` +
       `模式：${dbg.mode} · 文件：${hintFile}。` +
       (dbg.mode === 'release'
-        ? '请确认 GitHub Release（videos-v1）已上传该视频且文件名一致。'
+        ? '请确认 GitHub Release（videos-v2）已上传该视频且文件名一致。'
         : '开发调试：请用 http://localhost:8080 打开，并确认 videos/ 内有该文件。');
   }
 }

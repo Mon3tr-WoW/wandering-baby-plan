@@ -5,7 +5,7 @@
  * 【开发者】仅在 localhost / 局域网调试时使用项目内 videos/ 文件夹
  */
 
-const RELEASE_TAG = 'videos-v1';
+const RELEASE_TAG = 'videos-v2';
 const REPO = 'Mon3tr-WoW/wandering-baby-plan';
 const RELEASE_BASE = `https://github.com/${REPO}/releases/download/${RELEASE_TAG}/`;
 
