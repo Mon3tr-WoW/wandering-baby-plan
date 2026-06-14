@@ -22,9 +22,11 @@ import {
 import {
   videoStemFromFile,
   buildVideoCandidates,
-  getVideoUrl,
+  resolveVideoUrl,
   rememberVideoUrl,
-  prefetchStoryBranches
+  invalidateVideoUrl,
+  prefetchStoryBranches,
+  warmVideo
 } from './video-cache.js';
 import {
   loadProxyUrlOverride,
@@ -40,6 +42,7 @@ import {
 import { reloadLlmRuntimeConfig, getLlmModeLabel } from './llm.js';
 
 const WARP_MS = 1600;
+let videoLoadToken = 0;
 
 /** @type {(show: boolean) => void} */
 let showPerfectLlmButton = () => {};
@@ -279,7 +282,7 @@ function onVideoEnded() {
     return;
   }
   if (node.autoNext) {
-    autoAdvanceTo(node.autoNext);
+    void autoAdvanceTo(node.autoNext);
     return;
   }
   showChoices(node);
@@ -319,46 +322,100 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function loadNodeVideo(node, autoplay = true) {
-  hideChoices();
-  const stem = videoStem(node);
-  let url = await getVideoUrl(stem);
+async function waitForMainVideoReady(video, timeoutMs = 20000) {
+  if (video.readyState >= 2) return;
 
-  els.video.onerror = () => {
-    const list = videoCandidates(node);
-    const idx = list.indexOf(url);
-    if (idx >= 0 && idx < list.length - 1) {
-      url = list[idx + 1];
-      rememberVideoUrl(stem, url);
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('视频加载超时'));
+    }, timeoutMs);
+
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('视频解码失败'));
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('canplay', onReady);
+      video.removeEventListener('error', onError);
+    };
+
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('canplay', onReady);
+    video.addEventListener('error', onError);
+  });
+}
+
+function setVideoLoading(on) {
+  els.videoWrap?.classList.toggle('video-loading', on);
+}
+
+async function tryPlayMainVideo() {
+  if (!els.video) return false;
+  try {
+    await els.video.play();
+    return true;
+  } catch (err) {
+    console.warn('视频自动播放被阻止，请手动点击播放。', err);
+    return false;
+  }
+}
+
+async function loadNodeVideo(node, autoplay = true) {
+  if (!els.video || !node) return;
+
+  const loadToken = ++videoLoadToken;
+  hideChoices();
+  setVideoLoading(true);
+
+  const stem = videoStem(node);
+  const candidates = videoCandidates(node);
+  let lastErr = null;
+
+  for (let i = 0; i < candidates.length; i++) {
+    if (loadToken !== videoLoadToken) return;
+
+    const url = i === 0 ? await resolveVideoUrl(stem) : candidates[i];
+
+    try {
       els.video.onerror = null;
+      els.video.pause();
+      els.video.removeAttribute('src');
+      els.video.load();
+
       els.video.src = url;
       els.video.load();
-      if (autoplay) els.video.play().catch(() => {});
+
+      await waitForMainVideoReady(els.video);
+      if (loadToken !== videoLoadToken) return;
+
+      rememberVideoUrl(stem, url);
+      updateHud(node);
+      renderStarMap();
+      setVideoLoading(false);
+
+      if (autoplay) await tryPlayMainVideo();
+
+      prefetchStoryBranches(node, nodeById);
+      return;
+    } catch (err) {
+      lastErr = err;
+      invalidateVideoUrl(stem);
+      console.warn(`视频候选失败 (${url}):`, err?.message || err);
     }
-  };
-
-  if (els.video.src !== url) {
-    els.video.src = url;
-  }
-  els.video.load();
-  updateHud(node);
-  renderStarMap();
-
-  if (autoplay) {
-    try {
-      await els.video.play();
-    } catch {
-      /* 浏览器可能阻止自动播放 */
-    }
   }
 
-  rememberVideoUrl(stem, url);
-  prefetchStoryBranches(node, nodeById);
-
-  els.video.onloadeddata = () => {
-    const resolved = els.video.currentSrc || els.video.src;
-    if (resolved) rememberVideoUrl(stem, resolved);
-  };
+  setVideoLoading(false);
+  console.error('所有视频候选均失败:', stem, lastErr);
+  if (els.shipLog) {
+    els.shipLog.textContent = `信号丢失 · 无法加载视频「${stem}」。请确认 videos/ 或 Release 中已有该文件。`;
+  }
 }
 
 async function jumpToNode(nodeId, fromStarMap = false) {
@@ -726,11 +783,14 @@ async function init() {
     document.body.classList.add('app-booted');
 
     // 预解析首个剧情视频，缩短「开始漂流」等待
-    const startNode = nodeById(story.meta.startNode);
-    if (startNode) {
-      getVideoUrl(videoStem(startNode)).then(() => {
-        prefetchStoryBranches(startNode, nodeById);
-      });
+    const firstNode = nodeById(story.meta.startNode);
+    if (firstNode) {
+      resolveVideoUrl(videoStem(firstNode))
+        .then((url) => {
+          warmVideo(videoStem(firstNode), url);
+          prefetchStoryBranches(firstNode, nodeById);
+        })
+        .catch(() => {});
     }
 
     // LLM 异步加载，绝不阻塞开始界面
