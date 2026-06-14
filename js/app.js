@@ -17,10 +17,15 @@ import { setupStartScan, resetStartScan } from './start-scan.js';
 import {
   initStartSfx,
   setSfxMasterVolume,
-  playButtonChoose,
-  playButtonConfirm
+  setupGlobalButtonSfx
 } from './start-sfx.js';
-import { VIDEO_BASE } from './video-config.js';
+import {
+  videoStemFromFile,
+  buildVideoCandidates,
+  getVideoUrl,
+  rememberVideoUrl,
+  prefetchStoryBranches
+} from './video-cache.js';
 import {
   loadProxyUrlOverride,
   saveProxyUrlOverride,
@@ -99,14 +104,13 @@ function nodeById(id) {
   return story?.nodes[id] ?? null;
 }
 
-/** story.json 里写的是 1.mp4，实际文件可能是 1.mov / 1.MP4 */
+/** story.json 里写的是 1.mp4，实际文件可能是 1.mov / B10.1.mp4 */
 function videoStem(node) {
-  return node.video.replace(/\.[^/.]+$/, '');
+  return videoStemFromFile(node.video);
 }
 
 function videoCandidates(node) {
-  const stem = videoStem(node);
-  return ['.mp4', '.mov', '.MP4', '.MOV'].map((ext) => VIDEO_BASE + stem + ext);
+  return buildVideoCandidates(videoStem(node));
 }
 
 function videoUrl(node) {
@@ -187,8 +191,8 @@ function renderStarMap() {
     if (isCurrent) btn.classList.add('current');
     if (node.ending) btn.classList.add('is-ending');
     btn.dataset.nodeId = id;
-    btn.title = node.title || `节点 ${id}`;
-    btn.innerHTML = `<span class="star-id">${id}</span>`;
+    btn.title = node.log || node.title || `节点 ${node.map || id}`;
+    btn.innerHTML = `<span class="star-id">${node.map || id}</span>`;
     btn.addEventListener('click', () => jumpToNode(id, true));
     els.starMap.appendChild(btn);
   });
@@ -274,7 +278,24 @@ function onVideoEnded() {
     openNodeGestureChoice(node);
     return;
   }
+  if (node.autoNext) {
+    autoAdvanceTo(node.autoNext);
+    return;
+  }
   showChoices(node);
+}
+
+async function autoAdvanceTo(nextId) {
+  hideChoices();
+  save.currentNodeId = nextId;
+  markVisited(nextId);
+  if (save.path[save.path.length - 1] !== nextId) {
+    save.path.push(nextId);
+  }
+  persist();
+  const next = nodeById(nextId);
+  if (!next) return;
+  await loadNodeVideo(next);
 }
 
 async function openNodeGestureChoice(node) {
@@ -298,34 +319,27 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function resolveVideoSrc(node) {
-  const candidates = videoCandidates(node);
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, { method: 'HEAD' });
-      if (res.ok) return url;
-    } catch {
-      /* 本地 file:// 等环境可能不支持 HEAD，继续尝试 */
-    }
-  }
-  return candidates[0];
-}
-
 async function loadNodeVideo(node, autoplay = true) {
   hideChoices();
-  let url = await resolveVideoSrc(node);
+  const stem = videoStem(node);
+  let url = await getVideoUrl(stem);
+
   els.video.onerror = () => {
     const list = videoCandidates(node);
     const idx = list.indexOf(url);
     if (idx >= 0 && idx < list.length - 1) {
       url = list[idx + 1];
+      rememberVideoUrl(stem, url);
       els.video.onerror = null;
       els.video.src = url;
       els.video.load();
       if (autoplay) els.video.play().catch(() => {});
     }
   };
-  els.video.src = url;
+
+  if (els.video.src !== url) {
+    els.video.src = url;
+  }
   els.video.load();
   updateHud(node);
   renderStarMap();
@@ -334,9 +348,17 @@ async function loadNodeVideo(node, autoplay = true) {
     try {
       await els.video.play();
     } catch {
-      /* 浏览器可能阻止自动播放，用户可手动点播放 */
+      /* 浏览器可能阻止自动播放 */
     }
   }
+
+  rememberVideoUrl(stem, url);
+  prefetchStoryBranches(node, nodeById);
+
+  els.video.onloadeddata = () => {
+    const resolved = els.video.currentSrc || els.video.src;
+    if (resolved) rememberVideoUrl(stem, resolved);
+  };
 }
 
 async function jumpToNode(nodeId, fromStarMap = false) {
@@ -442,32 +464,6 @@ async function loadStory() {
   story = await res.json();
 }
 
-function bindStartMenuSfx() {
-  const menu = document.querySelector('#screen-start .start-menu');
-  if (!menu) return;
-
-  let hoverBtn = null;
-
-  menu.addEventListener('mouseover', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn || !menu.contains(btn) || btn.classList.contains('hidden')) return;
-    if (btn === hoverBtn) return;
-    hoverBtn = btn;
-    playButtonChoose();
-  });
-
-  menu.addEventListener('mouseleave', () => {
-    hoverBtn = null;
-  });
-
-  menu.addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
-    if (btn && menu.contains(btn)) {
-      playButtonConfirm();
-    }
-  });
-}
-
 function updateLlmSparkSettingsUi() {
   const appIdInput = $('#llm-spark-appid');
   const apiKeyInput = $('#llm-spark-apikey');
@@ -544,7 +540,6 @@ function bindLlmSparkSettings() {
     clearSparkPasswordOverride();
     reloadLlmRuntimeConfig();
     updateLlmSparkSettingsUi();
-    playButtonConfirm();
     alert('密钥已保存到本机浏览器。\n' + getLlmModeLabel());
   });
 
@@ -578,7 +573,6 @@ function bindLlmProxySettings() {
     saveProxyUrlOverride(url);
     reloadLlmRuntimeConfig();
     updateLlmProxySettingsUi();
-    playButtonConfirm();
     alert(`代理已保存。\n当前链路：${getLlmModeLabel()}`);
   });
 
@@ -592,7 +586,6 @@ function bindLlmProxySettings() {
 }
 
 function bindEvents() {
-  bindStartMenuSfx();
   bindLlmSparkSettings();
   bindLlmProxySettings();
 
@@ -664,7 +657,7 @@ function bindEvents() {
 
   els.video?.addEventListener('timeupdate', () => {
     const node = nodeById(save?.currentNodeId);
-    if (!node || node.ending || !node.choices?.length) return;
+    if (!node || node.ending || node.autoNext || !node.choices?.length) return;
     if (node.gestureChoice) return;
     if (els.video.duration && els.video.currentTime >= els.video.duration - 0.25) {
       if (els.choices.classList.contains('hidden')) {
@@ -724,12 +717,21 @@ async function init() {
     applySettings();
     bindEvents();
     initStartSfx();
+    setupGlobalButtonSfx();
     initStartFx(els.particleCanvas, els.startMusic);
     applySettings();
     setupStartScan();
 
     showScreen('start');
     document.body.classList.add('app-booted');
+
+    // 预解析首个剧情视频，缩短「开始漂流」等待
+    const startNode = nodeById(story.meta.startNode);
+    if (startNode) {
+      getVideoUrl(videoStem(startNode)).then(() => {
+        prefetchStoryBranches(startNode, nodeById);
+      });
+    }
 
     // LLM 异步加载，绝不阻塞开始界面
     initLlmModule();

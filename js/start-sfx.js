@@ -35,3 +35,39 @@ export function playButtonChoose() {
 export function playButtonConfirm() {
   playOne(sfxConfirm);
 }
+
+/** 全局按钮悬停 / 点击音效（事件委托） */
+export function setupGlobalButtonSfx(root = document) {
+  let hoverBtn = null;
+
+  root.addEventListener(
+    'mouseover',
+    (e) => {
+      const btn = e.target.closest('button');
+      if (!btn || btn.disabled || btn.classList.contains('hidden') || btn.offsetParent === null) return;
+      if (btn === hoverBtn) return;
+      hoverBtn = btn;
+      playButtonChoose();
+    },
+    true
+  );
+
+  root.addEventListener(
+    'mouseleave',
+    (e) => {
+      const btn = e.target.closest('button');
+      if (btn && btn === hoverBtn) hoverBtn = null;
+    },
+    true
+  );
+
+  root.addEventListener(
+    'click',
+    (e) => {
+      const btn = e.target.closest('button');
+      if (!btn || btn.disabled || btn.classList.contains('hidden')) return;
+      playButtonConfirm();
+    },
+    true
+  );
+}
