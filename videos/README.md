@@ -1,31 +1,24 @@
-# 剧情视频（本地开发用）
+# 剧情视频
 
-线上 **GitHub Pages** 从 **GitHub Releases** 加载视频，不占 Git LFS 配额。  
-完整步骤见：[docs/视频托管与发布指南.md](../docs/视频托管与发布指南.md)
+## 玩家（线上）
 
-## 本地测试（重要）
+**不需要下载任何东西。** 打开 GitHub Pages 网址即可，视频自动从 **GitHub Releases** 加载。
 
-1. 把视频放进本目录（文件名与磁盘一致，如 `1.mov`、`B10.1.mp4`）
-2. 在项目根目录运行：
+## 开发者（本地调试）
+
+把视频放进本目录，运行：
 
 ```powershell
 python scripts/build-video-manifest.py
-```
-
-3. 用 **HTTP 服务器** 打开游戏（不要用 `file://` 双击 HTML）：
-
-```powershell
 python -m http.server 8080
 ```
 
-浏览器访问：`http://localhost:8080`
+浏览器访问 `http://localhost:8080`（仅开发用，玩家不走此路径）。
 
-游戏通过 `data/video-manifest.json` 精确匹配文件名，不再猜测扩展名。
+## 更新线上视频
 
-## 线上发布
+1. 修改或新增 `videos/` 内文件后运行 `python scripts/build-video-manifest.py`
+2. `git add data/video-manifest.json` 并 push
+3. 把**同名文件**上传到 GitHub Release 标签 `videos-v1`
 
-**不要**把视频 `git push` 进仓库。请：
-
-1. 运行 `python scripts/build-video-manifest.py` 更新清单
-2. 提交 `data/video-manifest.json` 到 Git
-3. 将全部视频 + `video-manifest.json` 上传到 GitHub Release（标签 `videos-v1`）
+详见 [docs/视频托管与发布指南.md](../docs/视频托管与发布指南.md)

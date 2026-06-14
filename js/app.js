@@ -445,9 +445,9 @@ async function loadNodeVideo(node, autoplay = true) {
     els.shipLog.textContent =
       `信号丢失 · 无法加载「${stem}」。` +
       `模式：${dbg.mode} · 文件：${hintFile}。` +
-      (dbg.mode === 'local'
-        ? '请用 http://localhost:8080 打开，并确认 videos/ 内有该文件。'
-        : '请确认 GitHub Release（videos-v1）已上传该视频，并重新部署 Pages。');
+      (dbg.mode === 'release'
+        ? '请确认 GitHub Release（videos-v1）已上传该视频且文件名一致。'
+        : '开发调试：请用 http://localhost:8080 打开，并确认 videos/ 内有该文件。');
   }
 }
 

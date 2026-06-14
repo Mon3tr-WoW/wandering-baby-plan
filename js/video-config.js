@@ -1,8 +1,8 @@
 /**
  * 剧情视频托管地址
  *
- * 线上 GitHub Pages：从 GitHub Releases 拉取
- * 本地 / 局域网开发：使用项目内 videos/ 文件夹
+ * 【玩家】打开 GitHub Pages 网址 → 自动从 GitHub Releases 拉取视频，无需任何本地操作
+ * 【开发者】仅在 localhost / 局域网调试时使用项目内 videos/ 文件夹
  */
 
 const RELEASE_TAG = 'videos-v1';

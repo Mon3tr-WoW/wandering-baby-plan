@@ -27,7 +27,6 @@ def video_file(v, manifest):
         '15_1': '15_1.MP4',
         '18_1': '18_1.MP4',
         '21_1': '21_1.MP4',
-        'B10_1': 'B10.1.mp4'
     }
     return mapping.get(v, f'{v}.mp4')
 
