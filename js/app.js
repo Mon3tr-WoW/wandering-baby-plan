@@ -90,7 +90,21 @@ const els = {
   perfectHooks: $('#perfect-hooks')
 };
 
+function stopMainVideo() {
+  if (!els.video) return;
+  videoLoadToken++;
+  els.video.pause();
+  setVideoLoading(false);
+  setVideoBuffering(false);
+  syncPauseButton(els.video, $('#btn-pause'));
+}
+
 function showScreen(name) {
+  if (name !== 'game' && screen === 'game') {
+    stopMainVideo();
+    hideChoices();
+  }
+
   screen = name;
   Object.entries(screens).forEach(([key, el]) => {
     if (el) el.classList.toggle('active', key === name);
