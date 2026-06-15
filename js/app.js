@@ -25,10 +25,17 @@ import {
   rememberVideoUrl,
   invalidateVideoUrl,
   loadVideoManifest,
-  getVideoDebugInfo
+  getVideoDebugInfo,
+  prefetchVideoMetadata,
+  cancelVideoPrefetch
 } from './video-cache.js';
 import { isFileProtocol, getVideoSourceMode } from './video-config.js';
 import { setupVideoSeek, syncPauseButton } from './video-seek.js';
+import {
+  waitForPlaybackBuffer,
+  shouldShowPlaybackBuffering,
+  getBufferedAhead
+} from './video-buffer.js';
 import {
   loadProxyUrlOverride,
   saveProxyUrlOverride,
@@ -44,6 +51,9 @@ import { reloadLlmRuntimeConfig, getLlmModeLabel } from './llm.js';
 
 const WARP_MS = 1600;
 let videoLoadToken = 0;
+/** @type {ReturnType<typeof setTimeout> | 0} */
+let branchPrefetchTimer = 0;
+const BRANCH_PREFETCH_DELAY_MS = 10000;
 
 /** @type {(show: boolean) => void} */
 let showPerfectLlmButton = () => {};
@@ -89,6 +99,8 @@ const els = {
 function stopMainVideo() {
   if (!els.video) return;
   videoLoadToken++;
+  clearBranchPrefetchSchedule();
+  cancelVideoPrefetch();
   els.video.pause();
   if (els.video.src) {
     els.video.removeAttribute('src');
@@ -487,9 +499,42 @@ function setVideoLoading(on) {
   }
 }
 
-async function tryPlayMainVideo() {
+function clearBranchPrefetchSchedule() {
+  if (branchPrefetchTimer) {
+    clearTimeout(branchPrefetchTimer);
+    branchPrefetchTimer = 0;
+  }
+}
+
+/** 当前视频稳定播放后，仅 metadata 预取一个分支（不 preload=auto） */
+function scheduleNextBranchPrefetch(node) {
+  clearBranchPrefetchSchedule();
+  if (!node) return;
+
+  branchPrefetchTimer = window.setTimeout(() => {
+    branchPrefetchTimer = 0;
+    if (screen !== 'game' || !els.video || els.video.paused) return;
+
+    let stem = null;
+    if (node.autoNext) {
+      const n = nodeById(node.autoNext);
+      if (n?.video) stem = videoStem(n);
+    } else if (node.choices?.length) {
+      const n = nodeById(node.choices[0].next);
+      if (n?.video) stem = videoStem(n);
+    }
+    if (!stem) return;
+
+    const url = buildVideoCandidates(stem)[0];
+    if (url) prefetchVideoMetadata(stem, url);
+  }, BRANCH_PREFETCH_DELAY_MS);
+}
+
+async function tryPlayMainVideo(loadToken) {
   if (!els.video) return false;
   try {
+    await waitForPlaybackBuffer(els.video, () => loadToken !== videoLoadToken);
+    if (loadToken !== videoLoadToken) return false;
     await els.video.play();
     return true;
   } catch (err) {
@@ -511,6 +556,8 @@ async function loadNodeVideo(node, autoplay = true) {
 
   const loadToken = ++videoLoadToken;
   hideChoices();
+  clearBranchPrefetchSchedule();
+  cancelVideoPrefetch();
   setVideoLoading(true);
   prepareGameVideo();
 
@@ -533,7 +580,8 @@ async function loadNodeVideo(node, autoplay = true) {
       renderStarMap();
       setVideoLoading(false);
 
-      if (autoplay) await tryPlayMainVideo();
+      if (autoplay) await tryPlayMainVideo(loadToken);
+      if (loadToken === videoLoadToken) scheduleNextBranchPrefetch(node);
 
       return;
     } catch (err) {
@@ -871,16 +919,19 @@ function bindEvents() {
   els.video?.addEventListener('ended', onVideoEnded);
 
   els.video?.addEventListener('waiting', () => {
-    if (
-      !els.videoWrap?.classList.contains('video-loading') &&
-      !els.video.paused &&
-      els.video.readyState >= 2
-    ) {
+    if (els.videoWrap?.classList.contains('video-loading')) return;
+    if (shouldShowPlaybackBuffering(els.video)) {
       setVideoBuffering(true);
     }
   });
   els.video?.addEventListener('playing', () => setVideoBuffering(false));
-  els.video?.addEventListener('canplay', () => setVideoBuffering(false));
+  els.video?.addEventListener('canplay', () => {
+    if (getBufferedAhead(els.video) >= 2.5) setVideoBuffering(false);
+  });
+  els.video?.addEventListener('progress', () => {
+    if (!els.videoWrap?.classList.contains('video-buffering')) return;
+    if (!shouldShowPlaybackBuffering(els.video)) setVideoBuffering(false);
+  });
 
   els.video?.addEventListener('timeupdate', () => {
     const node = nodeById(save?.currentNodeId);

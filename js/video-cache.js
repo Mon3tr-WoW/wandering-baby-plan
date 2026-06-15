@@ -59,6 +59,32 @@ export function invalidateVideoUrl(stem) {
   resolvedUrls.delete(stem);
 }
 
+/** 播放稳定后 metadata 预取（单文件、不抢主视频带宽） */
+let prefetchEl = null;
+let prefetchStem = null;
+
+export function prefetchVideoMetadata(stem, url) {
+  if (!stem || !url || prefetchStem === stem) return;
+  cancelVideoPrefetch();
+  prefetchEl = document.createElement('video');
+  prefetchEl.preload = 'metadata';
+  prefetchEl.muted = true;
+  prefetchEl.playsInline = true;
+  prefetchEl.style.cssText =
+    'position:fixed;width:0;height:0;opacity:0;pointer-events:none';
+  prefetchEl.src = url;
+  document.body.appendChild(prefetchEl);
+  prefetchStem = stem;
+}
+
+export function cancelVideoPrefetch() {
+  if (prefetchEl) {
+    prefetchEl.remove();
+    prefetchEl = null;
+  }
+  prefetchStem = null;
+}
+
 export function getVideoDebugInfo(stem) {
   return {
     mode: getVideoSourceMode(),
