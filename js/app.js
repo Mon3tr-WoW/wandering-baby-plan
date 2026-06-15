@@ -32,6 +32,7 @@ import {
   getVideoManifestEntry
 } from './video-cache.js';
 import { isFileProtocol, getVideoSourceMode } from './video-config.js';
+import { setupVideoSeek, syncPauseButton } from './video-seek.js';
 import {
   loadProxyUrlOverride,
   saveProxyUrlOverride,
@@ -266,6 +267,21 @@ function applySettings() {
 function updateHud(node) {
   if (els.coord) els.coord.textContent = `X-${nodeIdToCoord(save.currentNodeId)}`;
   if (els.shipLog) els.shipLog.textContent = node.log || '';
+}
+
+function syncChoicesWithPlayback(node) {
+  if (!node || !els.video || !els.choices) return;
+  if (node.ending || node.autoNext || node.gestureChoice || !node.choices?.length) return;
+
+  const dur = els.video.duration;
+  if (!dur || !Number.isFinite(dur)) return;
+
+  const nearEnd = els.video.currentTime >= dur - 0.35;
+  if (nearEnd && els.choices.classList.contains('hidden')) {
+    showChoices(node);
+  } else if (!nearEnd && !els.choices.classList.contains('hidden')) {
+    hideChoices();
+  }
 }
 
 function nodeIdToCoord(id) {
@@ -782,7 +798,24 @@ function bindEvents() {
   $('#btn-pause')?.addEventListener('click', () => {
     if (els.video.paused) els.video.play();
     else els.video.pause();
+    syncPauseButton(els.video, $('#btn-pause'));
   });
+
+  setupVideoSeek(els.video, {
+    track: $('#video-seek-track'),
+    buffer: $('#video-seek-buffer'),
+    played: $('#video-seek-played'),
+    thumb: $('#video-seek-thumb'),
+    current: $('#video-time-current'),
+    duration: $('#video-time-duration'),
+    onSeek: () => {
+      const node = nodeById(save?.currentNodeId);
+      syncChoicesWithPlayback(node);
+    }
+  });
+
+  els.video?.addEventListener('play', () => syncPauseButton(els.video, $('#btn-pause')));
+  els.video?.addEventListener('pause', () => syncPauseButton(els.video, $('#btn-pause')));
 
   $('#btn-exit-game')?.addEventListener('click', () => {
     persist();
@@ -811,13 +844,7 @@ function bindEvents() {
 
   els.video?.addEventListener('timeupdate', () => {
     const node = nodeById(save?.currentNodeId);
-    if (!node || node.ending || node.autoNext || !node.choices?.length) return;
-    if (node.gestureChoice) return;
-    if (els.video.duration && els.video.currentTime >= els.video.duration - 0.25) {
-      if (els.choices.classList.contains('hidden')) {
-        showChoices(node);
-      }
-    }
+    syncChoicesWithPlayback(node);
   });
 
   els.volume?.addEventListener('input', (e) => {

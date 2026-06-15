@@ -1441,8 +1441,117 @@ button:hover {
 
 .video-controls {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.55rem;
   margin: 0.5rem 0 0.75rem;
+}
+
+.video-controls-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.video-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.video-seek-time {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: rgba(0, 240, 255, 0.72);
+  text-align: center;
+  user-select: none;
+}
+
+.video-seek-track {
+  position: relative;
+  flex: 1;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: 2px;
+  outline: none;
+}
+
+.video-seek-track:focus-visible {
+  box-shadow: 0 0 0 2px rgba(157, 78, 221, 0.45);
+}
+
+.video-seek-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.18);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.video-seek-buffer,
+.video-seek-played {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  width: 0;
+  border-radius: 2px 0 0 2px;
+  pointer-events: none;
+}
+
+.video-seek-buffer {
+  background: rgba(157, 78, 221, 0.28);
+  z-index: 1;
+}
+
+.video-seek-played {
+  background: linear-gradient(90deg, var(--aurora), var(--holo));
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+  z-index: 2;
+}
+
+.video-seek-thumb {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: var(--aurora);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.65);
+  pointer-events: none;
+  z-index: 3;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.video-seek-track.is-dragging .video-seek-thumb,
+.video-seek-track:hover .video-seek-thumb {
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.85);
+}
+
+@media (max-width: 900px) {
+  .video-seek-time {
+    font-size: 0.62rem;
+    min-width: 2.2rem;
+  }
+
+  .video-seek-thumb {
+    width: 14px;
+    height: 14px;
+    margin-left: -7px;
+  }
 }
 
 .dialogue-row {
