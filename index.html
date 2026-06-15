@@ -57,7 +57,7 @@
       />
     </div>
   </div>
-  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="metadata"></audio>
+  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="auto"></audio>
   <div id="start-intro-curtain" class="start-intro-curtain" aria-hidden="true"></div>
   <div id="start-unlock-hint" class="start-unlock-hint hidden" aria-live="polite">
     <span class="unlock-ring" aria-hidden="true"></span>
@@ -201,7 +201,7 @@
 
       <main class="main-stage">
         <div id="video-wrap" class="video-wrap">
-          <video id="main-video" class="main-video" playsinline preload="auto"></video>
+          <video id="main-video" class="main-video" playsinline preload="none"></video>
           <div class="video-load-bar" aria-hidden="true"><i></i></div>
           <div id="scanline-overlay" class="scanline-overlay"></div>
         </div>
@@ -331,6 +331,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260615a"></script>
+  <script type="module" src="js/app.js?v=20260615b"></script>
 </body>
 </html>

@@ -22,9 +22,12 @@ function videoUrlForFilename(filename) {
 }
 
 /**
- * manifest 精确文件名优先，再按扩展名回退（线上下载失败时可试 .mov 等）
+ * manifest 精确文件名；线上 v4 全 MP4，只试一条 URL，避免错试拖慢
  */
 export function buildVideoCandidates(stem) {
+  if (manifest?.[stem] && !useLocalVideoFolder()) {
+    return [videoUrlForFilename(manifest[stem])];
+  }
   const names = new Set();
   if (manifest?.[stem]) names.add(manifest[stem]);
   for (const ext of EXT_ORDER) names.add(stem + ext);
@@ -125,25 +128,8 @@ export function warmVideo(stem, url) {
   v.load();
 }
 
-export async function prefetchStoryBranches(node, nodeById) {
-  if (!useLocalVideoFolder()) return;
-  if (!node) return;
-  const stems = new Set();
-
-  if (node.autoNext) {
-    const n = nodeById(node.autoNext);
-    if (n?.video) stems.add(videoStemFromFile(n.video));
-  }
-  for (const c of node.choices || []) {
-    const n = nodeById(c.next);
-    if (n?.video) stems.add(videoStemFromFile(n.video));
-  }
-
-  for (const stem of stems) {
-    resolveVideoUrl(stem)
-      .then((url) => warmVideo(stem, url))
-      .catch(() => {});
-  }
+export async function prefetchStoryBranches() {
+  /* 带宽留给当前剧情视频，不预加载分支 */
 }
 
 export function getVideoDebugInfo(stem) {

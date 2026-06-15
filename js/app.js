@@ -22,11 +22,8 @@ import {
 import {
   videoStemFromFile,
   buildVideoCandidates,
-  resolveVideoUrl,
   rememberVideoUrl,
   invalidateVideoUrl,
-  prefetchStoryBranches,
-  warmVideo,
   loadVideoManifest,
   getVideoDebugInfo
 } from './video-cache.js';
@@ -93,15 +90,44 @@ function stopMainVideo() {
   if (!els.video) return;
   videoLoadToken++;
   els.video.pause();
+  if (els.video.src) {
+    els.video.removeAttribute('src');
+    els.video.load();
+    els.video.preload = 'none';
+  }
   setVideoLoading(false);
   setVideoBuffering(false);
   syncPauseButton(els.video, $('#btn-pause'));
+}
+
+function prepareGameVideo() {
+  if (!els.video) return;
+  els.video.preload = 'auto';
+}
+
+function assignMainVideoSrc(url) {
+  if (!els.video) return false;
+  const next = new URL(url, location.href).href;
+  if (els.video.src === next) {
+    if (els.video.readyState === 0) els.video.load();
+    return false;
+  }
+  els.video.pause();
+  els.video.onerror = null;
+  els.video.src = url;
+  els.video.load();
+  return true;
 }
 
 function showScreen(name) {
   if (name !== 'game' && screen === 'game') {
     stopMainVideo();
     hideChoices();
+  }
+
+  if (name === 'game') {
+    prepareGameVideo();
+    scheduleGameExtras();
   }
 
   screen = name;
@@ -155,6 +181,8 @@ function normalizeSave(raw, startNode) {
   };
 }
 
+let llmInitScheduled = false;
+
 async function initLlmModule() {
   try {
     const mod = await import('./llm-chat.js');
@@ -162,6 +190,22 @@ async function initLlmModule() {
     showPerfectLlmButton = mod.showPerfectLlmButton;
   } catch (err) {
     console.warn('LLM 模块未加载，游戏主流程不受影响。', err);
+  }
+}
+
+function scheduleGameExtras() {
+  if (llmInitScheduled) return;
+  llmInitScheduled = true;
+  const run = () => {
+    initLlmModule();
+    import('./gesture-detection.js')
+      .then((mod) => mod.preloadGestureEngine())
+      .catch(() => {});
+  };
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(run, { timeout: 15000 });
+  } else {
+    setTimeout(run, 6000);
   }
 }
 
@@ -355,15 +399,7 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-function resetMainVideoElement() {
-  if (!els.video) return;
-  els.video.pause();
-  els.video.onerror = null;
-  els.video.removeAttribute('src');
-  els.video.load();
-}
-
-async function waitForMainVideoReady(video, loadToken, timeoutMs = 90000) {
+async function waitForMainVideoReady(video, loadToken, timeoutMs = 60000) {
   if (loadToken !== videoLoadToken) throw new Error('aborted');
   if (video.readyState >= 1) {
     setVideoLoading(false);
@@ -471,7 +507,7 @@ async function loadNodeVideo(node, autoplay = true) {
   const loadToken = ++videoLoadToken;
   hideChoices();
   setVideoLoading(true);
-  resetMainVideoElement();
+  prepareGameVideo();
 
   const stem = videoStem(node);
   const candidates = buildVideoCandidates(stem);
@@ -482,9 +518,7 @@ async function loadNodeVideo(node, autoplay = true) {
     if (loadToken !== videoLoadToken) return;
 
     try {
-      els.video.onerror = null;
-      els.video.src = url;
-      els.video.load();
+      assignMainVideoSrc(url);
 
       await waitForMainVideoReady(els.video, loadToken);
       if (loadToken !== videoLoadToken) return;
@@ -496,7 +530,6 @@ async function loadNodeVideo(node, autoplay = true) {
 
       if (autoplay) await tryPlayMainVideo();
 
-      prefetchStoryBranches(node, nodeById);
       return;
     } catch (err) {
       lastErr = err;
@@ -831,7 +864,11 @@ function bindEvents() {
   els.video?.addEventListener('ended', onVideoEnded);
 
   els.video?.addEventListener('waiting', () => {
-    if (!els.videoWrap?.classList.contains('video-loading')) {
+    if (
+      !els.videoWrap?.classList.contains('video-loading') &&
+      !els.video.paused &&
+      els.video.readyState >= 2
+    ) {
       setVideoBuffering(true);
     }
   });
@@ -909,26 +946,8 @@ async function init() {
     showScreen('start');
     document.body.classList.add('app-booted');
 
-    // 预解析首个剧情视频，缩短「开始漂流」等待
-    const firstNode = nodeById(story.meta.startNode);
-    if (firstNode) {
-      resolveVideoUrl(videoStem(firstNode))
-        .then((url) => {
-          warmVideo(videoStem(firstNode), url);
-          prefetchStoryBranches(firstNode, nodeById);
-        })
-        .catch(() => {});
-    }
-
-    // LLM 异步加载，绝不阻塞开始界面
-    initLlmModule();
-
-    // 手势检测：测试按钮 + 预加载 MediaPipe
     import('./gesture-detection.js')
-      .then((mod) => {
-        mod.setupGestureTestButton();
-        mod.preloadGestureEngine();
-      })
+      .then((mod) => mod.setupGestureTestButton())
       .catch((err) => console.warn('手势模块未加载。', err));
 
     // 若入场动画 4 秒内未就绪，强制显示 UI（防黑屏兜底）
