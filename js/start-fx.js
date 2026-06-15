@@ -32,31 +32,6 @@ const DUST_CORE = [183, 178, 138];
 const DUST_HI = [232, 227, 198];
 const DUST_LO = [92, 88, 72];
 
-let musicRetryTimer = 0;
-
-function clearMusicRetry() {
-  if (musicRetryTimer) {
-    clearInterval(musicRetryTimer);
-    musicRetryTimer = 0;
-  }
-}
-
-function scheduleMusicRetry() {
-  clearMusicRetry();
-  musicRetryTimer = window.setInterval(() => {
-    if (!document.body.classList.contains('start-screen-active')) {
-      clearMusicRetry();
-      return;
-    }
-    if (startMusic?.paused) tryPlayMusic();
-    else clearMusicRetry();
-  }, 2500);
-}
-
-function isStartScreenActive() {
-  return document.body.classList.contains('start-screen-active');
-}
-
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
@@ -412,17 +387,15 @@ function startIntroLoop() {
 }
 
 async function tryPlayMusic() {
-  if (!startMusic || !isStartScreenActive()) return false;
+  if (!startMusic) return false;
   startMusic.loop = true;
+  startMusic.load();
   try {
     const elapsed = getIntroTime();
-    if (Number.isFinite(startMusic.duration) && startMusic.duration > 0) {
-      startMusic.currentTime = Math.min(elapsed, startMusic.duration);
-    }
+    startMusic.currentTime = Math.min(elapsed, startMusic.duration || elapsed);
     await startMusic.play();
     introAudioSynced = true;
     hideUnlockHint();
-    clearMusicRetry();
     return true;
   } catch {
     return false;
@@ -431,19 +404,18 @@ async function tryPlayMusic() {
 
 function bindAudioUnlock() {
   const unlock = () => {
-    if (!isStartScreenActive() || introAudioSynced || !startMusic) return;
+    if (introAudioSynced || !startMusic) return;
     startMusic.currentTime = getIntroTime();
     startMusic
       .play()
       .then(() => {
         introAudioSynced = true;
         hideUnlockHint();
-        clearMusicRetry();
       })
       .catch(() => {});
   };
-  document.addEventListener('pointerdown', unlock, { passive: true, once: false });
-  document.addEventListener('keydown', unlock, { once: false });
+  document.addEventListener('pointerdown', unlock, { passive: true });
+  document.addEventListener('keydown', unlock);
 }
 
 function applyIntroTime(t) {
@@ -489,11 +461,6 @@ export function initStartFx(targetCanvas, audioEl) {
   requestAnimationFrame(resize);
   setParticlesEnabled(enabled);
   if (!rafId) rafId = requestAnimationFrame(tick);
-  if (startMusic && isStartScreenActive()) {
-    void tryPlayMusic().then((ok) => {
-      if (!ok) scheduleMusicRetry();
-    });
-  }
 }
 
 export async function playStartIntro() {
@@ -518,13 +485,12 @@ export async function playStartIntro() {
   if (startMusic) {
     startMusic.currentTime = 0;
     const played = await tryPlayMusic();
-    if (!played) scheduleMusicRetry();
+    if (!played) showUnlockHint();
   }
 }
 
 export function pauseStartMusic() {
   stopIntroLoop();
-  clearMusicRetry();
   if (startMusic) startMusic.pause();
 }
 

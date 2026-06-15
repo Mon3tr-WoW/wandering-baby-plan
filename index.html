@@ -57,7 +57,7 @@
       />
     </div>
   </div>
-  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="auto"></audio>
+  <audio id="start-music" src="music/Ad%20astra.mp3" loop preload="metadata"></audio>
   <div id="start-intro-curtain" class="start-intro-curtain" aria-hidden="true"></div>
   <div id="start-unlock-hint" class="start-unlock-hint hidden" aria-live="polite">
     <span class="unlock-ring" aria-hidden="true"></span>
@@ -201,33 +201,13 @@
 
       <main class="main-stage">
         <div id="video-wrap" class="video-wrap">
-          <video id="main-video" class="main-video" playsinline preload="none"></video>
+          <video id="main-video" class="main-video" playsinline preload="auto"></video>
           <div class="video-load-bar" aria-hidden="true"><i></i></div>
           <div id="scanline-overlay" class="scanline-overlay"></div>
         </div>
         <div class="video-controls">
-          <div class="video-seek-row">
-            <span id="video-time-current" class="video-seek-time" aria-hidden="true">0:00</span>
-            <div
-              id="video-seek-track"
-              class="video-seek-track"
-              role="slider"
-              aria-label="播放进度"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow="0"
-              tabindex="0"
-            >
-              <div id="video-seek-buffer" class="video-seek-buffer"></div>
-              <div id="video-seek-played" class="video-seek-played"></div>
-              <div id="video-seek-thumb" class="video-seek-thumb"></div>
-            </div>
-            <span id="video-time-duration" class="video-seek-time" aria-hidden="true">0:00</span>
-          </div>
-          <div class="video-controls-actions">
-            <button type="button" id="btn-pause" class="btn-icon">⏸️ 暂停</button>
-            <button type="button" id="btn-exit-game" class="btn-icon">🔙 退出</button>
-          </div>
+          <button type="button" id="btn-pause" class="btn-icon">⏸️ 暂停</button>
+          <button type="button" id="btn-exit-game" class="btn-icon">🔙 退出</button>
         </div>
 
         <div class="dialogue-row">
@@ -331,6 +311,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260615e"></script>
+  <script type="module" src="js/app.js?v=20260529a"></script>
 </body>
 </html>

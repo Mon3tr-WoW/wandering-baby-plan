@@ -22,20 +22,16 @@ import {
 import {
   videoStemFromFile,
   buildVideoCandidates,
+  resolveVideoUrl,
   rememberVideoUrl,
   invalidateVideoUrl,
+  prefetchStoryBranches,
+  warmVideo,
   loadVideoManifest,
   getVideoDebugInfo,
-  prefetchVideoMetadata,
-  cancelVideoPrefetch
+  getVideoManifestEntry
 } from './video-cache.js';
 import { isFileProtocol, getVideoSourceMode } from './video-config.js';
-import { setupVideoSeek, syncPauseButton } from './video-seek.js';
-import {
-  waitForPlaybackBuffer,
-  shouldShowPlaybackBuffering,
-  getBufferedAhead
-} from './video-buffer.js';
 import {
   loadProxyUrlOverride,
   saveProxyUrlOverride,
@@ -51,9 +47,6 @@ import { reloadLlmRuntimeConfig, getLlmModeLabel } from './llm.js';
 
 const WARP_MS = 1600;
 let videoLoadToken = 0;
-/** @type {ReturnType<typeof setTimeout> | 0} */
-let branchPrefetchTimer = 0;
-const BRANCH_PREFETCH_DELAY_MS = 10000;
 
 /** @type {(show: boolean) => void} */
 let showPerfectLlmButton = () => {};
@@ -96,60 +89,7 @@ const els = {
   perfectHooks: $('#perfect-hooks')
 };
 
-function stopMainVideo() {
-  if (!els.video) return;
-  videoLoadToken++;
-  clearBranchPrefetchSchedule();
-  cancelVideoPrefetch();
-  els.video.pause();
-  if (els.video.src) {
-    els.video.removeAttribute('src');
-    els.video.load();
-    els.video.preload = 'none';
-  }
-  setVideoLoading(false);
-  setVideoBuffering(false);
-  syncPauseButton(els.video, $('#btn-pause'));
-}
-
-function prepareGameVideo() {
-  if (!els.video) return;
-  els.video.preload = 'auto';
-}
-
-function clearMainVideoSource() {
-  if (!els.video) return;
-  els.video.pause();
-  els.video.onerror = null;
-  if (els.video.src) {
-    els.video.removeAttribute('src');
-    els.video.load();
-  }
-}
-
-function assignMainVideoSrc(url) {
-  if (!els.video) return false;
-  const nextAbs = new URL(url, location.href).href;
-  const cur = els.video.src;
-  if (cur === nextAbs && els.video.readyState >= 1) return false;
-  if (cur && cur !== nextAbs) clearMainVideoSource();
-  els.video.onerror = null;
-  els.video.src = url;
-  els.video.load();
-  return true;
-}
-
 function showScreen(name) {
-  if (name !== 'game' && screen === 'game') {
-    stopMainVideo();
-    hideChoices();
-  }
-
-  if (name === 'game') {
-    prepareGameVideo();
-    scheduleGameExtras();
-  }
-
   screen = name;
   Object.entries(screens).forEach(([key, el]) => {
     if (el) el.classList.toggle('active', key === name);
@@ -201,8 +141,6 @@ function normalizeSave(raw, startNode) {
   };
 }
 
-let llmInitScheduled = false;
-
 async function initLlmModule() {
   try {
     const mod = await import('./llm-chat.js');
@@ -210,17 +148,6 @@ async function initLlmModule() {
     showPerfectLlmButton = mod.showPerfectLlmButton;
   } catch (err) {
     console.warn('LLM 模块未加载，游戏主流程不受影响。', err);
-  }
-}
-
-function scheduleGameExtras() {
-  if (llmInitScheduled) return;
-  llmInitScheduled = true;
-  const run = () => initLlmModule();
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(run, { timeout: 120000 });
-  } else {
-    setTimeout(run, 30000);
   }
 }
 
@@ -341,21 +268,6 @@ function updateHud(node) {
   if (els.shipLog) els.shipLog.textContent = node.log || '';
 }
 
-function syncChoicesWithPlayback(node) {
-  if (!node || !els.video || !els.choices) return;
-  if (node.ending || node.autoNext || node.gestureChoice || !node.choices?.length) return;
-
-  const dur = els.video.duration;
-  if (!dur || !Number.isFinite(dur)) return;
-
-  const nearEnd = els.video.currentTime >= dur - 0.35;
-  if (nearEnd && els.choices.classList.contains('hidden')) {
-    showChoices(node);
-  } else if (!nearEnd && !els.choices.classList.contains('hidden')) {
-    hideChoices();
-  }
-}
-
 function nodeIdToCoord(id) {
   const n = id.replace(/_/g, '');
   const hash = [...n].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -414,16 +326,12 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function waitForMainVideoReady(video, loadToken, timeoutMs = 120000) {
+async function waitForMainVideoReady(video, loadToken, timeoutMs = 180000) {
   if (loadToken !== videoLoadToken) throw new Error('aborted');
-  if (video.readyState >= 1) {
-    setVideoLoading(false);
-    return;
-  }
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    const finish = (ok, err) => {
+    const settle = (ok, err) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -431,48 +339,65 @@ async function waitForMainVideoReady(video, loadToken, timeoutMs = 120000) {
       else reject(err || new Error('视频加载失败'));
     };
 
-    const onReady = () => {
+    const tryPlay = () => {
+      if (video.paused && !video.ended) {
+        video.play().catch(() => {});
+      }
+    };
+
+    const onMeta = () => {
       setVideoLoading(false);
-      finish(true);
+      tryPlay();
+    };
+
+    const onPlaying = () => {
+      setVideoLoading(false);
+      setVideoBuffering(false);
+      settle(true);
     };
 
     const onError = () => {
       const code = video.error?.code ?? '?';
-      finish(false, new Error(`视频加载失败 (code ${code})`));
+      settle(false, new Error(`视频解码失败 (code ${code})`));
     };
 
     const progressTick = setInterval(() => {
       if (loadToken !== videoLoadToken) {
-        finish(false, new Error('aborted'));
+        settle(false, new Error('aborted'));
         return;
       }
       updateVideoBufferHint(video);
-    }, 800);
+      if (video.readyState >= 1) setVideoLoading(false);
+      tryPlay();
+    }, 600);
 
     const timer = setTimeout(() => {
-      if (video.readyState >= 1) {
+      if (video.readyState >= 1 || video.networkState === HTMLMediaElement.NETWORK_LOADING) {
         setVideoLoading(false);
-        finish(true);
+        tryPlay();
+        settle(true);
       } else {
-        finish(false, new Error('视频加载超时，请检查网络或 Release 文件是否存在'));
+        settle(false, new Error('视频加载超时（首段视频较大，请稍候或检查网络）'));
       }
     }, timeoutMs);
 
     const cleanup = () => {
       clearTimeout(timer);
       clearInterval(progressTick);
-      video.removeEventListener('loadedmetadata', onReady);
-      video.removeEventListener('loadeddata', onReady);
-      video.removeEventListener('canplay', onReady);
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('canplay', onMeta);
+      video.removeEventListener('playing', onPlaying);
       video.removeEventListener('error', onError);
     };
 
-    video.addEventListener('loadedmetadata', onReady, { once: true });
-    video.addEventListener('loadeddata', onReady, { once: true });
-    video.addEventListener('canplay', onReady, { once: true });
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('canplay', onMeta);
+    video.addEventListener('playing', onPlaying, { once: true });
     video.addEventListener('error', onError, { once: true });
 
+    tryPlay();
     updateVideoBufferHint(video);
+    if (video.readyState >= 1) onMeta();
   });
 }
 
@@ -499,42 +424,9 @@ function setVideoLoading(on) {
   }
 }
 
-function clearBranchPrefetchSchedule() {
-  if (branchPrefetchTimer) {
-    clearTimeout(branchPrefetchTimer);
-    branchPrefetchTimer = 0;
-  }
-}
-
-/** 当前视频稳定播放后，仅 metadata 预取一个分支（不 preload=auto） */
-function scheduleNextBranchPrefetch(node) {
-  clearBranchPrefetchSchedule();
-  if (!node) return;
-
-  branchPrefetchTimer = window.setTimeout(() => {
-    branchPrefetchTimer = 0;
-    if (screen !== 'game' || !els.video || els.video.paused) return;
-
-    let stem = null;
-    if (node.autoNext) {
-      const n = nodeById(node.autoNext);
-      if (n?.video) stem = videoStem(n);
-    } else if (node.choices?.length) {
-      const n = nodeById(node.choices[0].next);
-      if (n?.video) stem = videoStem(n);
-    }
-    if (!stem) return;
-
-    const url = buildVideoCandidates(stem)[0];
-    if (url) prefetchVideoMetadata(stem, url);
-  }, BRANCH_PREFETCH_DELAY_MS);
-}
-
-async function tryPlayMainVideo(loadToken) {
+async function tryPlayMainVideo() {
   if (!els.video) return false;
   try {
-    await waitForPlaybackBuffer(els.video, () => loadToken !== videoLoadToken);
-    if (loadToken !== videoLoadToken) return false;
     await els.video.play();
     return true;
   } catch (err) {
@@ -556,13 +448,20 @@ async function loadNodeVideo(node, autoplay = true) {
 
   const loadToken = ++videoLoadToken;
   hideChoices();
-  clearBranchPrefetchSchedule();
-  cancelVideoPrefetch();
   setVideoLoading(true);
-  prepareGameVideo();
 
   const stem = videoStem(node);
-  const candidates = buildVideoCandidates(stem);
+  let candidates = buildVideoCandidates(stem);
+
+  // 无 manifest 映射时，本地先用 HEAD 解析一次
+  if (!getVideoManifestEntry(stem) && getVideoSourceMode() === 'local') {
+    try {
+      const resolved = await resolveVideoUrl(stem);
+      if (resolved) candidates = [resolved, ...candidates.filter((u) => u !== resolved)];
+    } catch {
+      /* 保留原候选列表 */
+    }
+  }
 
   let lastErr = null;
 
@@ -570,7 +469,10 @@ async function loadNodeVideo(node, autoplay = true) {
     if (loadToken !== videoLoadToken) return;
 
     try {
-      assignMainVideoSrc(url);
+      els.video.onerror = null;
+      els.video.pause();
+      els.video.src = url;
+      els.video.load();
 
       await waitForMainVideoReady(els.video, loadToken);
       if (loadToken !== videoLoadToken) return;
@@ -580,14 +482,13 @@ async function loadNodeVideo(node, autoplay = true) {
       renderStarMap();
       setVideoLoading(false);
 
-      if (autoplay) await tryPlayMainVideo(loadToken);
-      if (loadToken === videoLoadToken) scheduleNextBranchPrefetch(node);
+      if (autoplay) await tryPlayMainVideo();
 
+      prefetchStoryBranches(node, nodeById);
       return;
     } catch (err) {
       lastErr = err;
       invalidateVideoUrl(stem);
-      clearMainVideoSource();
       console.warn(`[Video] 候选失败 ${url}:`, err?.message || err);
     }
   }
@@ -595,15 +496,14 @@ async function loadNodeVideo(node, autoplay = true) {
   setVideoLoading(false);
   const dbg = getVideoDebugInfo(stem);
   console.error('[Video] 全部候选失败', { stem, nodeVideo: node.video, ...dbg, lastErr });
-  const hintFile = dbg.manifest || `${stem}.mp4`;
-  const tried = dbg.candidates?.join(' → ') || hintFile;
+  const hintFile = dbg.manifest || `${stem}.mov / ${stem}.mp4`;
   if (els.shipLog) {
     els.shipLog.textContent =
       `信号丢失 · 无法加载「${stem}」。` +
       `模式：${dbg.mode} · 文件：${hintFile}。` +
       (dbg.mode === 'release'
-        ? `请确认 Release videos-v4 已上传 ${hintFile}。已尝试：${tried}`
-        : '开发调试：请确认 videos/ 内有该 mp4 文件。');
+        ? '请确认 GitHub Release（videos-v4）已上传该视频且文件名一致。'
+        : '开发调试：请用 http://localhost:8080 打开，并确认 videos/ 内有该文件。');
   }
 }
 
@@ -882,24 +782,7 @@ function bindEvents() {
   $('#btn-pause')?.addEventListener('click', () => {
     if (els.video.paused) els.video.play();
     else els.video.pause();
-    syncPauseButton(els.video, $('#btn-pause'));
   });
-
-  setupVideoSeek(els.video, {
-    track: $('#video-seek-track'),
-    buffer: $('#video-seek-buffer'),
-    played: $('#video-seek-played'),
-    thumb: $('#video-seek-thumb'),
-    current: $('#video-time-current'),
-    duration: $('#video-time-duration'),
-    onSeek: () => {
-      const node = nodeById(save?.currentNodeId);
-      syncChoicesWithPlayback(node);
-    }
-  });
-
-  els.video?.addEventListener('play', () => syncPauseButton(els.video, $('#btn-pause')));
-  els.video?.addEventListener('pause', () => syncPauseButton(els.video, $('#btn-pause')));
 
   $('#btn-exit-game')?.addEventListener('click', () => {
     persist();
@@ -919,23 +802,22 @@ function bindEvents() {
   els.video?.addEventListener('ended', onVideoEnded);
 
   els.video?.addEventListener('waiting', () => {
-    if (els.videoWrap?.classList.contains('video-loading')) return;
-    if (shouldShowPlaybackBuffering(els.video)) {
+    if (!els.videoWrap?.classList.contains('video-loading')) {
       setVideoBuffering(true);
     }
   });
   els.video?.addEventListener('playing', () => setVideoBuffering(false));
-  els.video?.addEventListener('canplay', () => {
-    if (getBufferedAhead(els.video) >= 2.5) setVideoBuffering(false);
-  });
-  els.video?.addEventListener('progress', () => {
-    if (!els.videoWrap?.classList.contains('video-buffering')) return;
-    if (!shouldShowPlaybackBuffering(els.video)) setVideoBuffering(false);
-  });
+  els.video?.addEventListener('canplay', () => setVideoBuffering(false));
 
   els.video?.addEventListener('timeupdate', () => {
     const node = nodeById(save?.currentNodeId);
-    syncChoicesWithPlayback(node);
+    if (!node || node.ending || node.autoNext || !node.choices?.length) return;
+    if (node.gestureChoice) return;
+    if (els.video.duration && els.video.currentTime >= els.video.duration - 0.25) {
+      if (els.choices.classList.contains('hidden')) {
+        showChoices(node);
+      }
+    }
   });
 
   els.volume?.addEventListener('input', (e) => {
@@ -1004,8 +886,26 @@ async function init() {
     showScreen('start');
     document.body.classList.add('app-booted');
 
+    // 预解析首个剧情视频，缩短「开始漂流」等待
+    const firstNode = nodeById(story.meta.startNode);
+    if (firstNode) {
+      resolveVideoUrl(videoStem(firstNode))
+        .then((url) => {
+          warmVideo(videoStem(firstNode), url);
+          prefetchStoryBranches(firstNode, nodeById);
+        })
+        .catch(() => {});
+    }
+
+    // LLM 异步加载，绝不阻塞开始界面
+    initLlmModule();
+
+    // 手势检测：测试按钮 + 预加载 MediaPipe
     import('./gesture-detection.js')
-      .then((mod) => mod.setupGestureTestButton())
+      .then((mod) => {
+        mod.setupGestureTestButton();
+        mod.preloadGestureEngine();
+      })
       .catch((err) => console.warn('手势模块未加载。', err));
 
     // 若入场动画 4 秒内未就绪，强制显示 UI（防黑屏兜底）
