@@ -22,12 +22,9 @@ function videoUrlForFilename(filename) {
 }
 
 /**
- * manifest 优先；线上 Release 有映射时只试一个 URL，避免错试 + 重复超时
+ * manifest 精确文件名优先，再按扩展名回退（线上下载失败时可试 .mov 等）
  */
 export function buildVideoCandidates(stem) {
-  if (manifest?.[stem] && !useLocalVideoFolder()) {
-    return [videoUrlForFilename(manifest[stem])];
-  }
   const names = new Set();
   if (manifest?.[stem]) names.add(manifest[stem]);
   for (const ext of EXT_ORDER) names.add(stem + ext);

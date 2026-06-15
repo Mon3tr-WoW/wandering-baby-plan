@@ -28,8 +28,7 @@ import {
   prefetchStoryBranches,
   warmVideo,
   loadVideoManifest,
-  getVideoDebugInfo,
-  getVideoManifestEntry
+  getVideoDebugInfo
 } from './video-cache.js';
 import { isFileProtocol, getVideoSourceMode } from './video-config.js';
 import { setupVideoSeek, syncPauseButton } from './video-seek.js';
@@ -356,12 +355,24 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function waitForMainVideoReady(video, loadToken, timeoutMs = 180000) {
+function resetMainVideoElement() {
+  if (!els.video) return;
+  els.video.pause();
+  els.video.onerror = null;
+  els.video.removeAttribute('src');
+  els.video.load();
+}
+
+async function waitForMainVideoReady(video, loadToken, timeoutMs = 90000) {
   if (loadToken !== videoLoadToken) throw new Error('aborted');
+  if (video.readyState >= 1) {
+    setVideoLoading(false);
+    return;
+  }
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    const settle = (ok, err) => {
+    const finish = (ok, err) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -369,65 +380,46 @@ async function waitForMainVideoReady(video, loadToken, timeoutMs = 180000) {
       else reject(err || new Error('视频加载失败'));
     };
 
-    const tryPlay = () => {
-      if (video.paused && !video.ended) {
-        video.play().catch(() => {});
-      }
-    };
-
-    const onMeta = () => {
+    const onReady = () => {
       setVideoLoading(false);
-      tryPlay();
-    };
-
-    const onPlaying = () => {
-      setVideoLoading(false);
-      setVideoBuffering(false);
-      settle(true);
+      finish(true);
     };
 
     const onError = () => {
       const code = video.error?.code ?? '?';
-      settle(false, new Error(`视频解码失败 (code ${code})`));
+      finish(false, new Error(`视频解码失败 (code ${code})`));
     };
 
     const progressTick = setInterval(() => {
       if (loadToken !== videoLoadToken) {
-        settle(false, new Error('aborted'));
+        finish(false, new Error('aborted'));
         return;
       }
       updateVideoBufferHint(video);
-      if (video.readyState >= 1) setVideoLoading(false);
-      tryPlay();
-    }, 600);
+    }, 800);
 
     const timer = setTimeout(() => {
-      if (video.readyState >= 1 || video.networkState === HTMLMediaElement.NETWORK_LOADING) {
+      if (video.readyState >= 1) {
         setVideoLoading(false);
-        tryPlay();
-        settle(true);
+        finish(true);
       } else {
-        settle(false, new Error('视频加载超时（首段视频较大，请稍候或检查网络）'));
+        finish(false, new Error('视频加载超时，请检查网络或 Release 是否包含该文件'));
       }
     }, timeoutMs);
 
     const cleanup = () => {
       clearTimeout(timer);
       clearInterval(progressTick);
-      video.removeEventListener('loadedmetadata', onMeta);
-      video.removeEventListener('canplay', onMeta);
-      video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('loadedmetadata', onReady);
+      video.removeEventListener('canplay', onReady);
       video.removeEventListener('error', onError);
     };
 
-    video.addEventListener('loadedmetadata', onMeta);
-    video.addEventListener('canplay', onMeta);
-    video.addEventListener('playing', onPlaying, { once: true });
+    video.addEventListener('loadedmetadata', onReady, { once: true });
+    video.addEventListener('canplay', onReady, { once: true });
     video.addEventListener('error', onError, { once: true });
 
-    tryPlay();
     updateVideoBufferHint(video);
-    if (video.readyState >= 1) onMeta();
   });
 }
 
@@ -479,19 +471,10 @@ async function loadNodeVideo(node, autoplay = true) {
   const loadToken = ++videoLoadToken;
   hideChoices();
   setVideoLoading(true);
+  resetMainVideoElement();
 
   const stem = videoStem(node);
-  let candidates = buildVideoCandidates(stem);
-
-  // 无 manifest 映射时，本地先用 HEAD 解析一次
-  if (!getVideoManifestEntry(stem) && getVideoSourceMode() === 'local') {
-    try {
-      const resolved = await resolveVideoUrl(stem);
-      if (resolved) candidates = [resolved, ...candidates.filter((u) => u !== resolved)];
-    } catch {
-      /* 保留原候选列表 */
-    }
-  }
+  const candidates = buildVideoCandidates(stem);
 
   let lastErr = null;
 
@@ -500,7 +483,6 @@ async function loadNodeVideo(node, autoplay = true) {
 
     try {
       els.video.onerror = null;
-      els.video.pause();
       els.video.src = url;
       els.video.load();
 
@@ -526,14 +508,14 @@ async function loadNodeVideo(node, autoplay = true) {
   setVideoLoading(false);
   const dbg = getVideoDebugInfo(stem);
   console.error('[Video] 全部候选失败', { stem, nodeVideo: node.video, ...dbg, lastErr });
-  const hintFile = dbg.manifest || `${stem}.mov / ${stem}.mp4`;
+  const hintFile = dbg.manifest || `${stem}.mp4`;
   if (els.shipLog) {
     els.shipLog.textContent =
       `信号丢失 · 无法加载「${stem}」。` +
       `模式：${dbg.mode} · 文件：${hintFile}。` +
       (dbg.mode === 'release'
-        ? '请确认 GitHub Release（videos-v4）已上传该视频且文件名一致。'
-        : '开发调试：请用 http://localhost:8080 打开，并确认 videos/ 内有该文件。');
+        ? `请确认 Release videos-v4 已上传 ${hintFile}（可试 ${stem}.mov 作备份）。`
+        : '开发调试：请确认 videos/ 内有该 mp4 或 mov 文件。');
   }
 }
 
