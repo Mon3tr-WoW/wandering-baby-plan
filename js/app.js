@@ -105,14 +105,22 @@ function prepareGameVideo() {
   els.video.preload = 'auto';
 }
 
+function clearMainVideoSource() {
+  if (!els.video) return;
+  els.video.pause();
+  els.video.onerror = null;
+  if (els.video.src) {
+    els.video.removeAttribute('src');
+    els.video.load();
+  }
+}
+
 function assignMainVideoSrc(url) {
   if (!els.video) return false;
-  const next = new URL(url, location.href).href;
-  if (els.video.src === next) {
-    if (els.video.readyState === 0) els.video.load();
-    return false;
-  }
-  els.video.pause();
+  const nextAbs = new URL(url, location.href).href;
+  const cur = els.video.src;
+  if (cur === nextAbs && els.video.readyState >= 1) return false;
+  if (cur && cur !== nextAbs) clearMainVideoSource();
   els.video.onerror = null;
   els.video.src = url;
   els.video.load();
@@ -196,16 +204,11 @@ async function initLlmModule() {
 function scheduleGameExtras() {
   if (llmInitScheduled) return;
   llmInitScheduled = true;
-  const run = () => {
-    initLlmModule();
-    import('./gesture-detection.js')
-      .then((mod) => mod.preloadGestureEngine())
-      .catch(() => {});
-  };
+  const run = () => initLlmModule();
   if ('requestIdleCallback' in window) {
-    requestIdleCallback(run, { timeout: 15000 });
+    requestIdleCallback(run, { timeout: 120000 });
   } else {
-    setTimeout(run, 6000);
+    setTimeout(run, 30000);
   }
 }
 
@@ -399,7 +402,7 @@ async function openNodeGestureChoice(node) {
   }
 }
 
-async function waitForMainVideoReady(video, loadToken, timeoutMs = 60000) {
+async function waitForMainVideoReady(video, loadToken, timeoutMs = 120000) {
   if (loadToken !== videoLoadToken) throw new Error('aborted');
   if (video.readyState >= 1) {
     setVideoLoading(false);
@@ -423,7 +426,7 @@ async function waitForMainVideoReady(video, loadToken, timeoutMs = 60000) {
 
     const onError = () => {
       const code = video.error?.code ?? '?';
-      finish(false, new Error(`视频解码失败 (code ${code})`));
+      finish(false, new Error(`视频加载失败 (code ${code})`));
     };
 
     const progressTick = setInterval(() => {
@@ -439,7 +442,7 @@ async function waitForMainVideoReady(video, loadToken, timeoutMs = 60000) {
         setVideoLoading(false);
         finish(true);
       } else {
-        finish(false, new Error('视频加载超时，请检查网络或 Release 是否包含该文件'));
+        finish(false, new Error('视频加载超时，请检查网络或 Release 文件是否存在'));
       }
     }, timeoutMs);
 
@@ -447,11 +450,13 @@ async function waitForMainVideoReady(video, loadToken, timeoutMs = 60000) {
       clearTimeout(timer);
       clearInterval(progressTick);
       video.removeEventListener('loadedmetadata', onReady);
+      video.removeEventListener('loadeddata', onReady);
       video.removeEventListener('canplay', onReady);
       video.removeEventListener('error', onError);
     };
 
     video.addEventListener('loadedmetadata', onReady, { once: true });
+    video.addEventListener('loadeddata', onReady, { once: true });
     video.addEventListener('canplay', onReady, { once: true });
     video.addEventListener('error', onError, { once: true });
 
@@ -534,6 +539,7 @@ async function loadNodeVideo(node, autoplay = true) {
     } catch (err) {
       lastErr = err;
       invalidateVideoUrl(stem);
+      clearMainVideoSource();
       console.warn(`[Video] 候选失败 ${url}:`, err?.message || err);
     }
   }
@@ -542,13 +548,14 @@ async function loadNodeVideo(node, autoplay = true) {
   const dbg = getVideoDebugInfo(stem);
   console.error('[Video] 全部候选失败', { stem, nodeVideo: node.video, ...dbg, lastErr });
   const hintFile = dbg.manifest || `${stem}.mp4`;
+  const tried = dbg.candidates?.join(' → ') || hintFile;
   if (els.shipLog) {
     els.shipLog.textContent =
       `信号丢失 · 无法加载「${stem}」。` +
       `模式：${dbg.mode} · 文件：${hintFile}。` +
       (dbg.mode === 'release'
-        ? `请确认 Release videos-v4 已上传 ${hintFile}（可试 ${stem}.mov 作备份）。`
-        : '开发调试：请确认 videos/ 内有该 mp4 或 mov 文件。');
+        ? `请确认 Release videos-v4 已上传 ${hintFile}。已尝试：${tried}`
+        : '开发调试：请确认 videos/ 内有该 mp4 文件。');
   }
 }
 

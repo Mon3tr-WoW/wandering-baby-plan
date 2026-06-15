@@ -24,8 +24,13 @@ export function useLocalVideoFolder() {
   return false;
 }
 
-/** 视频 URL 前缀，末尾带 / */
-export const VIDEO_BASE = useLocalVideoFolder() ? 'videos/' : RELEASE_BASE;
+/** 视频 URL 前缀（运行时判定，避免模块加载时取错） */
+export function getVideoBase() {
+  return useLocalVideoFolder() ? 'videos/' : RELEASE_BASE;
+}
+
+/** @deprecated 请用 getVideoBase() */
+export const VIDEO_BASE = getVideoBase();
 
 export function getVideoSourceMode() {
   return useLocalVideoFolder() ? 'local' : 'release';
