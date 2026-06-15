@@ -57,6 +57,10 @@ function isStartScreenActive() {
   return document.body.classList.contains('start-screen-active');
 }
 
+function rand(min, max) {
+  return min + Math.random() * (max - min);
+}
+
 function lerpRgb(a, b, t) {
   return [
     Math.round(a[0] + (b[0] - a[0]) * t),
